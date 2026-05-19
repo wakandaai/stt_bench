@@ -9,6 +9,7 @@ from stt_benchmark.models.hf.whisper import WhisperModel
 from stt_benchmark.models.hf.mms import MMSModel
 from stt_benchmark.models.hf.seamless import SeamlessModel
 from stt_benchmark.models.hf.cascaded import CascadedMmsNllbModel
+from stt_benchmark.models.hf.speech_aura import SpeechAuraModel
 
 
 class ModelFactory:
@@ -19,6 +20,7 @@ class ModelFactory:
         "mms": MMSModel,
         "seamless": SeamlessModel,
         "cascaded": CascadedMmsNllbModel,
+        "speech_aura": SpeechAuraModel,
     }
 
     @classmethod

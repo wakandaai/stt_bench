@@ -25,6 +25,7 @@ classifiers = [
 ]
 dependencies = [
     "torch==2.8.0",
+    "torchaudio==2.8.0",
     "transformers==4.55.0",
     "PyYAML==6.0.2",
     "pandas==2.3.1",

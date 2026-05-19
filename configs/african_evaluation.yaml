@@ -16,9 +16,6 @@ asr:
     - ig_ng    # Igbo
     - lg_ug    # Luganda
     - ln_cd    # Lingala
-    - luo_ke   # Luo
-    - ny_mw    # Chichewa
-    - om_et    # Oromo
     - sn_zw    # Shona
     - so_so    # Somali
     - sw_ke    # Swahili
@@ -26,6 +23,17 @@ asr:
     - xh_za    # Xhosa
     - yo_ng    # Yoruba
     - zu_za    # Zulu
+    - en_us    # English
+    - ar_eg    # Arabic
+    - fr_fr    # French
+    - pt_br    # Portuguese
+    # - bem      # Bemba
+    # - rw_rw    # Kinyarwanda
+    # - tsn_za   # Tswana
+    # - tigrinya  # Tigrinya
+    # - sesotho   # Southern Sotho
+    # - malagasy   # Malagasy
+
 
 # ── AST ──────────────────────────────────────────────────────────────────────
 # Each source language is paired with each anchor.
@@ -38,17 +46,17 @@ asr:
 # FLEURS parallel data is structured as {source}-{target}.csv where source
 # has the audio. So use "forward" to match data like sw_ke-en_us.csv,
 # or "both" if your dataset also has en_us-sw_ke.csv.
-ast:
-  # Sources default to asr.languages when omitted
-  # sources:
-  #   - sw_ke
-  #   - yo_ng
+# ast:
+#   # Sources default to asr.languages when omitted
+#   # sources:
+#   #   - sw_ke
+#   #   - yo_ng
 
-  anchors:
-    - en_us    # English
-    - fr_fr    # French
+#   anchors:
+#     - en_us    # English
+#     - fr_fr    # French
 
-  direction: both   # source → anchor AND anchor → source
+#   direction: both   # source → anchor AND anchor → source
 
   # Optional: additional explicit pairs
   # extra_pairs:
