@@ -36,16 +36,6 @@ class EvaluationPipeline:
         chrf_config: Dict[str, Any] = None,
         skip_unsupported: bool = True,
     ):
-        """Initialize evaluation pipeline.
-
-        Args:
-            output_dir: Directory to save results
-            batch_size: Batch size for inference
-            normalizer: Text normalizer for ASR WER computation
-            bleu_config: BLEU config for AST
-            chrf_config: chrF config for AST
-            skip_unsupported: Skip unsupported languages/pairs
-        """
         self.output_dir = Path(output_dir)
         self.batch_size = batch_size
         self.skip_unsupported = skip_unsupported
@@ -65,7 +55,6 @@ class EvaluationPipeline:
         experiment_name: str,
         batch_size: Optional[int] = None,
     ) -> Optional[ASREvaluationResult]:
-        """Evaluate ASR model on a single language."""
         if self.skip_unsupported and not model.supports_language(language):
             print(f"⏭️  Skipping ASR {language}: not supported by model")
             return None
@@ -107,7 +96,6 @@ class EvaluationPipeline:
         languages: Optional[List[str]] = None,
         batch_size: Optional[int] = None,
     ) -> List[ASREvaluationResult]:
-        """Evaluate ASR on all (or specified) languages."""
         langs = languages or sorted(dataset.list_languages())
         model_name = model.get_model_info()["model_name"]
         print(f"Evaluating ASR: {model_name} on {len(langs)} languages")
@@ -135,18 +123,17 @@ class EvaluationPipeline:
         batch_size: int,
         language: str,
     ) -> List[ASRPrediction]:
-        """Run ASR inference — sends file paths to model."""
+        """Run ASR inference — passes samples directly to the model."""
         predictions = []
 
         for i in tqdm(
             range(0, len(samples), batch_size), desc="ASR inference", leave=False
         ):
             batch = samples[i : i + batch_size]
-            audio_paths = [s.audio_path for s in batch]
 
             start = time.time()
             try:
-                hypotheses = model.transcribe(audio_paths, language)
+                hypotheses = model.transcribe(batch, language)
                 pred_time = (time.time() - start) / len(batch)
             except Exception as e:
                 print(f"    Transcription error: {e}")
@@ -159,7 +146,7 @@ class EvaluationPipeline:
                         sample_id=sample.sample_id,
                         reference=sample.transcription,
                         hypothesis=hyp,
-                        audio_path=sample.audio_path,
+                        audio_path=sample.audio_path or "",
                         language=language,
                         prediction_time=pred_time,
                     )
@@ -180,7 +167,6 @@ class EvaluationPipeline:
         experiment_name: str,
         batch_size: Optional[int] = None,
     ) -> Optional[ASTEvaluationResult]:
-        """Evaluate AST model on a language pair."""
         if self.skip_unsupported and not model.supports_language_pair(
             source_lang, target_lang
         ):
@@ -227,7 +213,6 @@ class EvaluationPipeline:
         pairs: Optional[List[tuple]] = None,
         batch_size: Optional[int] = None,
     ) -> List[ASTEvaluationResult]:
-        """Evaluate AST on all (or specified) language pairs."""
         if pairs is None:
             pairs = sorted(dataset.list_language_pairs())
 
@@ -258,10 +243,7 @@ class EvaluationPipeline:
         source_lang: str,
         target_lang: str,
     ) -> List[ASTPrediction]:
-        """Run AST inference — sends file paths to model.
-
-        For cascaded models, also captures intermediate ASR transcripts.
-        """
+        """Run AST inference — passes samples directly to the model."""
         predictions = []
         is_cascaded = _is_cascaded_model(model)
 
@@ -269,14 +251,12 @@ class EvaluationPipeline:
             range(0, len(samples), batch_size), desc="AST inference", leave=False
         ):
             batch = samples[i : i + batch_size]
-            audio_paths = [s.source_audio_path for s in batch]
 
             start = time.time()
             try:
-                hypotheses = model.translate(audio_paths, source_lang, target_lang)
+                hypotheses = model.translate(batch, source_lang, target_lang)
                 pred_time = (time.time() - start) / len(batch)
 
-                # Capture intermediate transcripts from cascaded models
                 if is_cascaded:
                     intermediate = model.get_last_intermediate_transcripts()
                 else:
@@ -295,7 +275,7 @@ class EvaluationPipeline:
                         source_transcription=sample.source_transcription,
                         reference=sample.target_transcription,
                         hypothesis=hyp,
-                        audio_path=sample.source_audio_path,
+                        audio_path=sample.source_audio_path or "",
                         source_lang=source_lang,
                         target_lang=target_lang,
                         prediction_time=pred_time,
@@ -312,7 +292,6 @@ class EvaluationPipeline:
     def _save_asr_result(self, result: ASREvaluationResult):
         exp_dir = self.output_dir / result.experiment_name
 
-        # Predictions CSV
         pred_dir = exp_dir / "predictions"
         pred_dir.mkdir(parents=True, exist_ok=True)
         csv_path = pred_dir / f"{result.model_name}_asr_{result.language}.csv"
@@ -324,7 +303,6 @@ class EvaluationPipeline:
                     [pred.sample_id, pred.reference, pred.hypothesis, pred.audio_path]
                 )
 
-        # Metrics JSON
         metrics_dir = exp_dir / "metrics"
         metrics_dir.mkdir(parents=True, exist_ok=True)
         metrics_path = (
@@ -351,12 +329,10 @@ class EvaluationPipeline:
     def _save_ast_result(self, result: ASTEvaluationResult):
         exp_dir = self.output_dir / result.experiment_name
 
-        # Check if any predictions have intermediate transcripts
         has_intermediate = any(
             p.intermediate_transcript is not None for p in result.predictions
         )
 
-        # Predictions CSV
         pred_dir = exp_dir / "predictions"
         pred_dir.mkdir(parents=True, exist_ok=True)
         csv_path = (
@@ -388,7 +364,6 @@ class EvaluationPipeline:
                     row.append(pred.intermediate_transcript or "")
                 writer.writerow(row)
 
-        # Metrics JSON
         metrics_dir = exp_dir / "metrics"
         metrics_dir.mkdir(parents=True, exist_ok=True)
         metrics_path = (

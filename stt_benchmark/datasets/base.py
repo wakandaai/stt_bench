@@ -3,26 +3,39 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional, Iterator, Set
 from dataclasses import dataclass
+import numpy as np
 
 
 @dataclass
 class AudioSample:
-    """A single audio sample with transcription and metadata."""
-    audio_path: str
+    """A single audio sample with transcription and metadata.
+
+    Exactly one of (audio_path, audio_array) must be set:
+      - audio_path: path on disk; sampling_rate may be None (loader resamples).
+      - audio_array: pre-decoded waveform; sampling_rate must be set.
+    """
     transcription: str
     language: str                          # FLEURS code (e.g., 'sw_ke')
     sample_id: str
+    audio_path: Optional[str] = None
+    audio_array: Optional[np.ndarray] = None
+    sampling_rate: Optional[int] = None
 
 
 @dataclass
 class ParallelAudioSample:
-    """A parallel sample for AST evaluation: source audio + target text."""
-    source_audio_path: str
+    """A parallel sample for AST evaluation: source audio + target text.
+
+    Source audio follows the same path-or-array contract as AudioSample.
+    """
     source_transcription: str
     source_language: str                   # FLEURS code
     target_transcription: str
     target_language: str                   # FLEURS code
     sample_id: str
+    source_audio_path: Optional[str] = None
+    source_audio_array: Optional[np.ndarray] = None
+    source_sampling_rate: Optional[int] = None
 
 
 class BaseASRDataset(ABC):

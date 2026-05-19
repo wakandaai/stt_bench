@@ -2,26 +2,25 @@
 """
 STT Benchmark Evaluation Script
 
-Evaluate speech models on FLEURS dataset for ASR and/or AST tasks.
+Evaluate speech models on the HuggingFace `google/fleurs` dataset for ASR and/or AST tasks.
 
 Usage with eval config (recommended):
-  python scripts/evaluate.py whisper_large_v3 --eval-config stt_benchmark/config/eval_configs/african_eval.yaml
-  python scripts/evaluate.py seamless_m4t_v2_large --eval-config stt_benchmark/config/eval_configs/full_eval.yaml
+  python scripts/evaluate.py whisper_large_v3 --eval-config configs/african_evaluation.yaml
+  python scripts/evaluate.py seamless_m4t_v2_large --eval-config configs/african_evaluation.yaml --split validation
 
 Usage with CLI flags (ad-hoc):
   python scripts/evaluate.py whisper_large_v3 --task asr --language sw_ke
   python scripts/evaluate.py whisper_large_v3 --task ast --source-lang sw_ke --target-lang en_us
-  python scripts/evaluate.py whisper_large_v3 --task both --languages sw_ke yo_ng --ast-pairs sw_ke:en_us yo_ng:en_us
 """
 
 import argparse
 import sys
 import os
 import torch
-from typing import List, Tuple, Set
+from typing import List, Tuple
 
 from stt_benchmark.models.factory import ModelFactory
-from stt_benchmark.models.base import BaseASRModel, BaseASTModel
+from stt_benchmark.models.base import BaseASRModel
 from stt_benchmark.datasets.fleurs import FleursDataset
 from stt_benchmark.evaluation.pipeline import EvaluationPipeline
 from stt_benchmark.evaluation.config import load_eval_config
@@ -36,11 +35,7 @@ def validate_asr_languages(
     model: BaseASRModel,
     dataset: FleursDataset,
 ) -> Tuple[List[str], List[Tuple[str, str]]]:
-    """Filter ASR languages against model support and dataset availability.
-
-    Returns:
-        (valid_languages, skipped_with_reasons)
-    """
+    """Filter ASR languages against model support and dataset availability."""
     model_supported = model.get_supported_languages()
     dataset_available = dataset.list_languages()
 
@@ -63,14 +58,8 @@ def validate_ast_pairs(
     model,
     dataset: FleursDataset,
 ) -> Tuple[List[Tuple[str, str]], List[Tuple[str, str, str]]]:
-    """Filter AST pairs against model support and dataset availability.
-
-    Returns:
-        (valid_pairs, skipped_with_reasons)
-    """
+    """Filter AST pairs against model support and dataset availability."""
     dataset_pairs = dataset.list_language_pairs()
-
-    # Check if model has AST capability
     has_ast = hasattr(model, "supports_language_pair")
 
     valid = []
@@ -78,7 +67,7 @@ def validate_ast_pairs(
 
     for src, tgt in pairs:
         if (src, tgt) not in dataset_pairs:
-            skipped.append((src, tgt, "no parallel data in dataset"))
+            skipped.append((src, tgt, "not in dataset scope"))
         elif not has_ast:
             skipped.append((src, tgt, "model does not support AST"))
         elif not model.supports_language_pair(src, tgt):
@@ -97,8 +86,6 @@ def print_validation_report(
     run_asr: bool,
     run_ast: bool,
 ):
-    """Print a clear report of what will run and what was skipped."""
-
     if run_asr:
         print(f"\n📋 ASR Validation:")
         print(f"   ✅ Will evaluate: {len(asr_valid)} language(s)")
@@ -133,13 +120,13 @@ def print_validation_report(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="STT Benchmark: Evaluate speech models on FLEURS",
+        description="STT Benchmark: Evaluate speech models on google/fleurs (HF)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Use an eval config (recommended)
   python scripts/evaluate.py whisper_large_v3 \\
-      --eval-config stt_benchmark/config/eval_configs/african_eval.yaml
+      --eval-config configs/african_evaluation.yaml
 
   # Ad-hoc ASR on one language
   python scripts/evaluate.py whisper_large_v3 --task asr --language sw_ke
@@ -175,9 +162,10 @@ Examples:
 
     # ── General options ──────────────────────────────────────────────────
     parser.add_argument(
-        "--dataset-path",
-        default="/ocean/projects/cis250145p/shared/datasets/FLEURS/splits/test",
-        help="Path to FLEURS split directory",
+        "--split",
+        default="test",
+        choices=["train", "validation", "test"],
+        help="HuggingFace FLEURS split to evaluate on (default: test)",
     )
     parser.add_argument("--batch-size", type=int, default=1, help="Batch size (default: 1)")
     parser.add_argument("--output-dir", default="results", help="Output directory")
@@ -215,8 +203,19 @@ Examples:
         print(f"\nLoading model: {args.model_id}")
         model = ModelFactory.create_model(args.model_id)
 
-        print(f"Loading dataset: {args.dataset_path}")
-        dataset = FleursDataset(args.dataset_path, lazy_load=True)
+        # Build the set of languages the dataset needs to know about:
+        # ASR languages + every language mentioned in any AST pair.
+        scoped_languages = set(asr_languages or [])
+        for src, tgt in ast_pairs or []:
+            scoped_languages.add(src)
+            scoped_languages.add(tgt)
+
+        print(f"Loading dataset: google/fleurs (split={args.split})")
+        dataset = FleursDataset(
+            split=args.split,
+            languages=sorted(scoped_languages) if scoped_languages else None,
+            ast_pairs=ast_pairs if ast_pairs else None,
+        )
 
         # ── Pre-flight validation ────────────────────────────────────────
         asr_valid, asr_skipped = [], []
@@ -227,7 +226,6 @@ Examples:
                 asr_languages, model, dataset
             )
         elif run_asr:
-            # "all languages" mode — let the pipeline handle it
             asr_valid = None  # sentinel: means evaluate all
 
         if run_ast and ast_pairs:
@@ -241,7 +239,6 @@ Examples:
             run_asr, run_ast,
         )
 
-        # Check if there's anything left to do
         nothing_to_do = True
         if run_asr and (asr_valid is None or len(asr_valid) > 0):
             nothing_to_do = False
@@ -259,17 +256,15 @@ Examples:
             batch_size=args.batch_size,
             bleu_config={"lowercase": False},
             chrf_config={"word_order": 2},
-            skip_unsupported=False,  # We already filtered — don't double-check
+            skip_unsupported=False,
         )
 
         # ── ASR ──────────────────────────────────────────────────────────
         if run_asr:
             if asr_valid is None:
-                # Evaluate all languages in dataset
                 print(f"\n{'='*60}")
                 print("ASR Evaluation: all languages in dataset")
                 print(f"{'='*60}")
-                # Re-enable skip_unsupported for "all" mode
                 evaluator.skip_unsupported = True
                 results = evaluator.evaluate_asr_all_languages(
                     model=model,
@@ -324,7 +319,6 @@ Examples:
 
 
 def _resolve_asr_languages(args):
-    """Resolve ASR languages from CLI flags."""
     if args.language:
         return [args.language]
     elif args.languages:
@@ -333,7 +327,6 @@ def _resolve_asr_languages(args):
 
 
 def _resolve_ast_pairs(args):
-    """Resolve AST pairs from CLI flags."""
     pairs = []
     if args.source_lang and args.target_lang:
         pairs.append((args.source_lang, args.target_lang))

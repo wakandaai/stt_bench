@@ -9,6 +9,7 @@ import torch
 from typing import List, Dict, Set, Any, Tuple
 
 from stt_benchmark.models.base import BaseSTTModel
+from stt_benchmark.datasets.base import AudioSample, ParallelAudioSample
 from stt_benchmark.config.language_support.speech_aura import (
     fleurs_to_aura,
     speech_aura_supports_asr,
@@ -16,28 +17,14 @@ from stt_benchmark.config.language_support.speech_aura import (
     get_speech_aura_asr_languages,
     get_speech_aura_ast_pairs,
 )
-from stt_benchmark.utils.audio import load_audio
+from stt_benchmark.utils.audio import resolve_audio
 
 
 class SpeechAuraModel(BaseSTTModel):
-    """SpeechAura (Conformer + CTC compressor + projector + Aura-1B).
-
-    Loads once at init, runs inference per audio file. Designed for the
-    BaseSTTModel interface used by the FLEURS evaluation pipeline.
-    """
+    """SpeechAura (Conformer + CTC compressor + projector + Aura-1B)."""
 
     def __init__(self, model_name: str, model_config: Dict[str, Any]):
-        """
-        Args:
-            model_name: Identifier for results (e.g. 'speech_aura_stage5_step50000').
-            model_config: dict with keys:
-                - st_config:  Path to iwslt2026-st experiment YAML
-                - checkpoint: Path to checkpoint directory
-                - max_new_tokens_asr: int (default 128)
-                - max_new_tokens_cot: int (default 256)
-        """
-        # Lazy import — only loaded when this model is actually instantiated,
-        # so users without the iwslt2026-st repo aren't forced to install it.
+        # Lazy import — only loaded when this model is actually instantiated.
         from st.utils.config import load_config
         from st.training.train_st import build_model
 
@@ -63,10 +50,10 @@ class SpeechAuraModel(BaseSTTModel):
     # Audio → mel (matches st/inference/generate.py exactly)
     # ------------------------------------------------------------------
 
-    def _audio_to_mel(self, audio_path: str) -> Tuple[torch.Tensor, torch.Tensor]:
+    def _sample_to_mel(self, sample) -> Tuple[torch.Tensor, torch.Tensor]:
         import torchaudio
-        waveform, _ = load_audio(audio_path, self.target_sr)
-        waveform = torch.from_numpy(waveform)
+        waveform_np, _ = resolve_audio(sample, self.target_sr)
+        waveform = torch.from_numpy(waveform_np)
 
         mel_transform = torchaudio.transforms.MelSpectrogram(
             sample_rate=self.target_sr, n_fft=400, hop_length=160, n_mels=80,
@@ -77,11 +64,9 @@ class SpeechAuraModel(BaseSTTModel):
         mel_len = torch.tensor([mel.size(1)], device=self.device)
         return mel, mel_len
 
-    def _generate(self, audio_path: str, fleurs_lang: str, task: str) -> Dict[str, str]:
-        mel, mel_len = self._audio_to_mel(audio_path)
+    def _generate(self, sample, fleurs_lang: str, task: str) -> Dict[str, str]:
+        mel, mel_len = self._sample_to_mel(sample)
 
-        # For ASR: target = source language (transcribe same-language)
-        # For CoT: target = "english" (always — model was trained that way)
         if task == "asr":
             aura_lang = fleurs_to_aura(fleurs_lang)
         else:
@@ -105,52 +90,45 @@ class SpeechAuraModel(BaseSTTModel):
     # ASR
     # ------------------------------------------------------------------
 
-    def transcribe(self, audio_paths: List[str], language: str) -> List[str]:
+    def transcribe(self, samples: List[AudioSample], language: str) -> List[str]:
         if not speech_aura_supports_asr(language):
             print(f"SpeechAura does not support ASR for {language}")
-            return [""] * len(audio_paths)
+            return [""] * len(samples)
 
         results = []
-        for path in audio_paths:
+        for sample in samples:
             try:
-                out = self._generate(path, language, task="asr")
+                out = self._generate(sample, language, task="asr")
                 results.append(out["transcript"])
             except Exception as e:
-                print(f"    SpeechAura ASR error for {path}: {e}")
+                print(f"    SpeechAura ASR error for {sample.sample_id}: {e}")
                 results.append("")
         return results
 
     # ------------------------------------------------------------------
-    # AST (CoT — uses transcript-then-translate chain)
+    # AST (CoT)
     # ------------------------------------------------------------------
 
-    def translate(self, audio_paths: List[str], source_lang: str,
+    def translate(self, samples: List[ParallelAudioSample], source_lang: str,
                   target_lang: str) -> List[str]:
         if not speech_aura_supports_ast(source_lang, target_lang):
             print(f"SpeechAura does not support AST {source_lang}→{target_lang}")
-            return [""] * len(audio_paths)
+            return [""] * len(samples)
 
         translations = []
-        self._last_intermediate_transcripts = []  # match cascaded model's contract
-        for path in audio_paths:
+        self._last_intermediate_transcripts = []
+        for sample in samples:
             try:
-                out = self._generate(path, source_lang, task="cot")
+                out = self._generate(sample, source_lang, task="cot")
                 self._last_intermediate_transcripts.append(out["transcript"])
                 translations.append(out["translation"])
             except Exception as e:
-                print(f"    SpeechAura AST error for {path}: {e}")
+                print(f"    SpeechAura AST error for {sample.sample_id}: {e}")
                 self._last_intermediate_transcripts.append("")
                 translations.append("")
         return translations
 
     def get_last_intermediate_transcripts(self) -> List[str]:
-        """Expose CoT transcripts so the pipeline records them in the AST CSV.
-
-        This mirrors CascadedMmsNllbModel — `_is_cascaded_model` in pipeline.py
-        will pick this up and the AST predictions CSV will get an
-        intermediate_transcript column. Very useful for ASR-vs-MT error
-        attribution when comparing against the MMS+NLLB cascade.
-        """
         return list(getattr(self, "_last_intermediate_transcripts", []))
 
     # ------------------------------------------------------------------

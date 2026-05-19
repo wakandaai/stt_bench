@@ -14,11 +14,12 @@ from typing import List, Dict, Set, Any
 from transformers import Wav2Vec2ForCTC, AutoProcessor
 
 from stt_benchmark.models.base import BaseASRModel
+from stt_benchmark.datasets.base import AudioSample
 from stt_benchmark.config.language_support.mms import (
     fleurs_to_mms,
     get_mms_asr_languages,
 )
-from stt_benchmark.utils.audio import load_audio
+from stt_benchmark.utils.audio import resolve_audio
 
 
 class MMSModel(BaseASRModel):
@@ -77,12 +78,12 @@ class MMSModel(BaseASRModel):
             return False
 
     def transcribe(self,
-                   audio_paths: List[str],
+                   samples: List[AudioSample],
                    language: str) -> List[str]:
-        """Transcribe audio files using MMS CTC decoding.
+        """Transcribe audio samples using MMS CTC decoding.
 
         Args:
-            audio_paths: List of absolute file paths
+            samples: List of AudioSample objects
             language: FLEURS language code (e.g. 'sw_ke')
 
         Returns:
@@ -90,12 +91,12 @@ class MMSModel(BaseASRModel):
         """
         if not self._set_language(language):
             print(f"MMS does not support language {language}")
-            return [""] * len(audio_paths)
+            return [""] * len(samples)
 
         transcriptions = []
-        for path in audio_paths:
+        for sample in samples:
             try:
-                audio, sr = load_audio(path, self.target_sr)
+                audio, sr = resolve_audio(sample, self.target_sr)
 
                 inputs = self.processor(
                     audio,
@@ -116,7 +117,7 @@ class MMSModel(BaseASRModel):
                 transcriptions.append(text.strip())
 
             except Exception as e:
-                print(f"    MMS transcription error for {path}: {e}")
+                print(f"    MMS transcription error for {sample.sample_id}: {e}")
                 transcriptions.append("")
 
         return transcriptions

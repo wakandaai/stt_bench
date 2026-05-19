@@ -1,19 +1,25 @@
 # stt_benchmark/models/base.py
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Set, Optional
+from typing import List, Dict, Set, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from stt_benchmark.datasets.base import AudioSample, ParallelAudioSample
+
 
 class BaseASRModel(ABC):
     """Abstract base class for Automatic Speech Recognition models."""
 
     @abstractmethod
     def transcribe(self,
-                   audio_paths: List[str],
+                   samples: List["AudioSample"],
                    language: str) -> List[str]:
-        """Transcribe audio files to text in the same language.
+        """Transcribe audio samples to text in the same language.
 
         Args:
-            audio_paths: List of absolute file paths to audio files
+            samples: List of AudioSample objects. Each sample carries either
+                     an `audio_path` or an `audio_array` (+ `sampling_rate`).
+                     Models read audio via `utils.audio.resolve_audio(sample)`.
             language: FLEURS language code (e.g., 'sw_ke')
 
         Returns:
@@ -44,18 +50,22 @@ class BaseASRModel(ABC):
         """Whether the model supports batch processing."""
         return True
 
+
 class BaseASTModel(ABC):
     """Abstract base class for Automatic Speech Translation models."""
 
     @abstractmethod
     def translate(self,
-                  audio_paths: List[str],
+                  samples: List["ParallelAudioSample"],
                   source_lang: str,
                   target_lang: str) -> List[str]:
         """Translate speech from source language to text in target language.
 
         Args:
-            audio_paths: List of absolute file paths to audio files
+            samples: List of ParallelAudioSample objects. Each sample carries
+                     the source audio as either `source_audio_path` or
+                     `source_audio_array` (+ `source_sampling_rate`).
+                     Models read audio via `utils.audio.resolve_audio(sample)`.
             source_lang: Source FLEURS language code
             target_lang: Target FLEURS language code
 
@@ -71,20 +81,14 @@ class BaseASTModel(ABC):
 
     @abstractmethod
     def get_supported_pairs(self) -> Set[tuple]:
-        """Get supported (source, target) FLEURS language pairs for AST.
-
-        Returns:
-            Set of (source_fleurs, target_fleurs) tuples
-        """
+        """Get supported (source, target) FLEURS language pairs for AST."""
         pass
 
     def supports_language_pair(self, source_lang: str, target_lang: str) -> bool:
         """Check if AST is supported for this language pair."""
         return (source_lang, target_lang) in self.get_supported_pairs()
 
-class BaseSTTModel(BaseASRModel, BaseASTModel):
-    """Combined interface for models that support both ASR and AST.
 
-    Models like Whisper and SeamlessM4T implement both capabilities.
-    """
+class BaseSTTModel(BaseASRModel, BaseASTModel):
+    """Combined interface for models that support both ASR and AST."""
     pass

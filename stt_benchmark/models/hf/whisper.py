@@ -12,39 +12,29 @@ from typing import List, Dict, Set, Any
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 
 from stt_benchmark.models.base import BaseSTTModel
+from stt_benchmark.datasets.base import AudioSample, ParallelAudioSample
 from stt_benchmark.config.language_support.whisper import (
     fleurs_to_whisper,
     get_whisper_asr_languages,
     get_whisper_ast_pairs,
     WHISPER_AST_TARGET,
 )
-from stt_benchmark.utils.audio import load_audio
+from stt_benchmark.utils.audio import resolve_audio
 
 
 class WhisperModel(BaseSTTModel):
-    """Hugging Face implementation of OpenAI Whisper models.
-
-    Uses the transformers `pipeline` API for efficient batched inference.
-    """
+    """Hugging Face implementation of OpenAI Whisper models."""
 
     def __init__(self, model_name: str, model_config: Dict[str, Any]):
-        """Initialize Whisper model.
-
-        Args:
-            model_name: HuggingFace model id (e.g. 'openai/whisper-large-v3')
-            model_config: Configuration dict from models.yaml
-        """
         self.model_name = model_name
         self.config = model_config
-        self.target_sr = 16_000  # Whisper expects 16 kHz
+        self.target_sr = 16_000
 
-        # Determine device & dtype
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.torch_dtype = getattr(torch, model_config.get("torch_dtype", "float16"))
         if self.device == "cpu":
             self.torch_dtype = torch.float32
 
-        # Load model & processor
         self.model = AutoModelForSpeechSeq2Seq.from_pretrained(
             model_name,
             torch_dtype=self.torch_dtype,
@@ -54,7 +44,6 @@ class WhisperModel(BaseSTTModel):
         self.model.to(self.device)
         self.processor = AutoProcessor.from_pretrained(model_name)
 
-        # Generation kwargs from config
         gen_config = model_config.get("generation_config", {})
         self.generate_kwargs = {
             "max_new_tokens": gen_config.get("max_new_tokens", 384),
@@ -63,20 +52,13 @@ class WhisperModel(BaseSTTModel):
             "temperature": gen_config.get("temperature", 0.0),
         }
 
-        # Build pipelines (lazy — created per task/language)
         self._asr_pipe = None
         self._ast_pipe = None
 
-        # Cache supported languages
         self._asr_languages = get_whisper_asr_languages()
         self._ast_pairs = get_whisper_ast_pairs()
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
-
     def _get_asr_pipeline(self):
-        """Get or create the ASR pipeline."""
         if self._asr_pipe is None:
             self._asr_pipe = pipeline(
                 "automatic-speech-recognition",
@@ -88,43 +70,29 @@ class WhisperModel(BaseSTTModel):
             )
         return self._asr_pipe
 
-    def _load_audio_batch(self, audio_paths: List[str]) -> List[dict]:
-        """Load audio files into the format expected by the pipeline.
-
-        Returns:
-            List of dicts with 'raw' (np.ndarray) and 'sampling_rate' keys,
-            or None for files that fail to load.
-        """
+    def _samples_to_pipe_inputs(self, samples) -> List[dict]:
+        """Convert samples to the {raw, sampling_rate} dicts the HF pipeline expects."""
         results = []
-        for path in audio_paths:
+        for sample in samples:
             try:
-                audio, sr = load_audio(path, self.target_sr)
+                audio, sr = resolve_audio(sample, self.target_sr)
                 results.append({"raw": audio, "sampling_rate": sr})
             except Exception as e:
-                print(f"    Audio load error {path}: {e}")
+                print(f"    Audio resolve error for {sample.sample_id}: {e}")
                 results.append(None)
         return results
 
     # ------------------------------------------------------------------
-    # ASR interface
+    # ASR
     # ------------------------------------------------------------------
 
     def transcribe(self,
-                   audio_paths: List[str],
+                   samples: List[AudioSample],
                    language: str) -> List[str]:
-        """Transcribe audio files to text.
-
-        Args:
-            audio_paths: List of absolute file paths
-            language: FLEURS language code (e.g. 'sw_ke')
-
-        Returns:
-            List of transcription strings
-        """
         whisper_lang = fleurs_to_whisper(language)
         if whisper_lang is None:
             print(f"Whisper does not support language {language}")
-            return [""] * len(audio_paths)
+            return [""] * len(samples)
 
         pipe = self._get_asr_pipeline()
 
@@ -134,7 +102,7 @@ class WhisperModel(BaseSTTModel):
             "task": "transcribe",
         }
 
-        audio_batch = self._load_audio_batch(audio_paths)
+        audio_batch = self._samples_to_pipe_inputs(samples)
 
         transcriptions = []
         for audio_input in audio_batch:
@@ -142,10 +110,7 @@ class WhisperModel(BaseSTTModel):
                 transcriptions.append("")
                 continue
             try:
-                result = pipe(
-                    audio_input,
-                    generate_kwargs=gen_kwargs,
-                )
+                result = pipe(audio_input, generate_kwargs=gen_kwargs)
                 transcriptions.append(result["text"].strip())
             except Exception as e:
                 print(f"    Transcription error: {e}")
@@ -154,33 +119,21 @@ class WhisperModel(BaseSTTModel):
         return transcriptions
 
     # ------------------------------------------------------------------
-    # AST interface
+    # AST
     # ------------------------------------------------------------------
 
     def translate(self,
-                  audio_paths: List[str],
+                  samples: List[ParallelAudioSample],
                   source_lang: str,
                   target_lang: str) -> List[str]:
-        """Translate speech to English text.
-
-        Whisper only supports translation to English.
-
-        Args:
-            audio_paths: List of absolute file paths
-            source_lang: Source FLEURS language code
-            target_lang: Target FLEURS language code (must be 'en_us')
-
-        Returns:
-            List of translated strings
-        """
         if target_lang != "en_us":
             print(f"Whisper AST only translates to English, not {target_lang}")
-            return [""] * len(audio_paths)
+            return [""] * len(samples)
 
         whisper_lang = fleurs_to_whisper(source_lang)
         if whisper_lang is None:
             print(f"Whisper does not support source language {source_lang}")
-            return [""] * len(audio_paths)
+            return [""] * len(samples)
 
         pipe = self._get_asr_pipeline()
 
@@ -190,7 +143,7 @@ class WhisperModel(BaseSTTModel):
             "task": "translate",
         }
 
-        audio_batch = self._load_audio_batch(audio_paths)
+        audio_batch = self._samples_to_pipe_inputs(samples)
 
         translations = []
         for audio_input in audio_batch:
@@ -198,10 +151,7 @@ class WhisperModel(BaseSTTModel):
                 translations.append("")
                 continue
             try:
-                result = pipe(
-                    audio_input,
-                    generate_kwargs=gen_kwargs,
-                )
+                result = pipe(audio_input, generate_kwargs=gen_kwargs)
                 translations.append(result["text"].strip())
             except Exception as e:
                 print(f"    Translation error: {e}")
@@ -223,9 +173,7 @@ class WhisperModel(BaseSTTModel):
         }
 
     def get_supported_languages(self) -> Set[str]:
-        """FLEURS codes supported for ASR."""
         return self._asr_languages
 
     def get_supported_pairs(self) -> Set[tuple]:
-        """FLEURS (source, target) pairs supported for AST."""
         return self._ast_pairs

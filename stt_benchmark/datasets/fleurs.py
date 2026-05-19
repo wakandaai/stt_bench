@@ -1,171 +1,233 @@
 # stt_benchmark/datasets/fleurs.py
 
 """
-FLEURS dataset loader for preprocessed CSV files.
+FLEURS dataset loader backed by HuggingFace `google/fleurs`.
 
-Expected directory structure:
-    FLEURS/splits/{split}/
-        sw_ke.csv                    # Monolingual: id, path, transcript, gender
-        sw_ke-en_us.csv              # Parallel: sw_ke-id, sw_ke-path, sw_ke-transcript,
-                                     #           sw_ke-gender, en_us-id, en_us-path, ...
+Loads one config per language on demand. For AST, pairs source rows to target
+text by joining on the FLEURS `id` field (the canonical sentence ID — same
+sentence across all languages). Policy: every source utterance is paired
+with one reference text from the target language (first speaker per id).
+
+Per-row decode errors (e.g. torchcodec/FFmpeg failing on a malformed audio
+blob) are caught and the row is skipped, so a single bad sample doesn't
+abort a multi-language run.
 """
 
-import csv
-from pathlib import Path
-from typing import List, Dict, Any, Set, Optional
-from tqdm import tqdm
+from typing import List, Dict, Any, Set, Optional, Tuple
+import numpy as np
+from datasets import load_dataset
+
 from stt_benchmark.datasets.base import (
     BaseASRDataset, BaseASTDataset, AudioSample, ParallelAudioSample,
 )
+from stt_benchmark.config.language_support.fleurs import FLEURS_LANGUAGES
+
+HF_DATASET_NAME = "google/fleurs"
 
 
 class FleursDataset(BaseASRDataset, BaseASTDataset):
-    """FLEURS dataset loader for preprocessed CSVs.
+    """HuggingFace FLEURS loader for ASR (monolingual) and AST (parallel via id-join)."""
 
-    Supports both ASR (monolingual) and AST (parallel) evaluation.
-    """
-
-    def __init__(self, dataset_path: str, lazy_load: bool = True):
+    def __init__(
+        self,
+        split: str = "test",
+        languages: Optional[List[str]] = None,
+        ast_pairs: Optional[List[Tuple[str, str]]] = None,
+    ):
         """Initialize FLEURS dataset.
 
         Args:
-            dataset_path: Path to split directory (e.g., 'FLEURS/splits/test')
-            lazy_load: If True, only discover files on init; load data on demand.
-                       If False, load all CSVs into memory immediately.
+            split: HF split name ('train', 'validation', or 'test').
+            languages: Optional list of FLEURS language codes to allow for ASR.
+                       If None, all FLEURS_LANGUAGES are advertised as available
+                       (configs are loaded lazily on first request).
+            ast_pairs: Optional list of (source, target) pairs to allow for AST.
+                       If None, any pair of supported languages is allowed.
         """
-        self.dataset_path = Path(dataset_path)
-        self.lazy_load = lazy_load
+        self.split = split
+
+        all_codes = set(FLEURS_LANGUAGES.keys())
+        self._allowed_languages: Set[str] = (
+            set(languages) & all_codes if languages else all_codes
+        )
+        self._allowed_pairs: Optional[Set[Tuple[str, str]]] = (
+            set(ast_pairs) if ast_pairs is not None else None
+        )
 
         # Caches
         self._mono_cache: Dict[str, List[AudioSample]] = {}
         self._parallel_cache: Dict[str, List[ParallelAudioSample]] = {}
+        # Per-language target-text lookup: lang -> {id: transcription}
+        self._target_text_index: Dict[str, Dict[int, str]] = {}
 
-        # Discover available files
-        self._mono_files: Dict[str, Path] = {}      # lang -> csv path
-        self._parallel_files: Dict[str, Path] = {}   # "src-tgt" -> csv path
-        self._discover_files()
+    # ------------------------------------------------------------------
+    # HF loading
+    # ------------------------------------------------------------------
 
-        if not lazy_load:
-            self._load_all()
+    def _load_hf_split(self, language: str):
+        """Load one HF config for one split. Returns a `datasets.Dataset`."""
+        return load_dataset(HF_DATASET_NAME, language, split=self.split)
 
-    def _discover_files(self):
-        """Discover available CSV files."""
-        for csv_file in self.dataset_path.glob("*.csv"):
-            stem = csv_file.stem
-            if "-" in stem:
-                self._parallel_files[stem] = csv_file
-            else:
-                self._mono_files[stem] = csv_file
+    def _build_target_text_index(self, language: str) -> Dict[int, str]:
+        """Build {id: transcription} for one language. First speaker wins.
 
-        print(f"Discovered {len(self._mono_files)} monolingual + "
-              f"{len(self._parallel_files)} parallel files in {self.dataset_path}")
+        Note: we deliberately don't touch row["audio"] here, so corrupt
+        audio in the *target* language doesn't break the AST pair load.
+        We only need text from the target side.
+        """
+        if language in self._target_text_index:
+            return self._target_text_index[language]
 
-    def _load_all(self):
-        """Load all data into memory."""
-        for lang in tqdm(self._mono_files, desc="Loading monolingual"):
-            self._load_mono(lang)
-        for pair_key in tqdm(self._parallel_files, desc="Loading parallel"):
-            src, tgt = pair_key.split("-", 1)
-            self._load_parallel(src, tgt)
+        ds = self._load_hf_split(language)
+        index: Dict[int, str] = {}
+        for row in ds:
+            sid = row["id"]
+            if sid not in index:
+                index[sid] = row["transcription"]
+
+        self._target_text_index[language] = index
+        return index
+
+    # ------------------------------------------------------------------
+    # ASR (monolingual)
+    # ------------------------------------------------------------------
 
     def _load_mono(self, language: str) -> List[AudioSample]:
-        """Load monolingual CSV for a language."""
         if language in self._mono_cache:
             return self._mono_cache[language]
 
-        csv_path = self._mono_files.get(language)
-        if not csv_path:
-            raise ValueError(f"No monolingual data for '{language}'. "
-                           f"Available: {sorted(self._mono_files.keys())}")
+        ds = self._load_hf_split(language)
 
-        samples = []
-        with open(csv_path, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                sample = AudioSample(
-                    audio_path=row['path'],
-                    transcription=row['transcript'],
+        samples: List[AudioSample] = []
+        skipped = 0
+        for row in ds:
+            try:
+                audio = row["audio"]
+                samples.append(AudioSample(
+                    transcription=row["transcription"],
                     language=language,
-                    sample_id=row['id'],
-                )
-                samples.append(sample)
+                    sample_id=f"{row['id']}_{row.get('num_samples', len(samples))}",
+                    audio_array=np.asarray(audio["array"], dtype=np.float32),
+                    sampling_rate=int(audio["sampling_rate"]),
+                ))
+            except Exception as e:
+                skipped += 1
+                if skipped <= 3:
+                    print(
+                        f"  [{language}] skipping row id={row.get('id', '?')}: {e}"
+                    )
+
+        if skipped:
+            print(
+                f"  [{language}] loaded {len(samples)} samples, "
+                f"skipped {skipped} undecodable"
+            )
 
         self._mono_cache[language] = samples
         return samples
 
-    def _load_parallel(self, source_lang: str, target_lang: str) -> List[ParallelAudioSample]:
-        """Load parallel CSV for a language pair."""
+    def get_language_samples(self, language: str) -> List[AudioSample]:
+        if language not in self._allowed_languages:
+            raise ValueError(
+                f"Language '{language}' not in allowed set. "
+                f"Available: {sorted(self._allowed_languages)}"
+            )
+        return self._load_mono(language)
+
+    def list_languages(self) -> Set[str]:
+        return set(self._allowed_languages)
+
+    def get_dataset_info(self) -> Dict[str, Any]:
+        cached_counts = {lang: len(s) for lang, s in self._mono_cache.items()}
+        return {
+            "dataset_name": "google/fleurs (HF)",
+            "split": self.split,
+            "num_allowed_languages": len(self._allowed_languages),
+            "allowed_languages": sorted(self._allowed_languages),
+            "allowed_pairs": (
+                sorted(self._allowed_pairs)
+                if self._allowed_pairs is not None
+                else None
+            ),
+            "cached_mono_counts": cached_counts,
+        }
+
+    # ------------------------------------------------------------------
+    # AST (parallel via id-join)
+    # ------------------------------------------------------------------
+
+    def _load_parallel(
+        self, source_lang: str, target_lang: str
+    ) -> List[ParallelAudioSample]:
+        """Pair source audio with target text by FLEURS `id`.
+
+        Policy (a): every source utterance becomes one pair, with the
+        first-seen target transcription for that id as reference.
+        Source rows whose id has no matching target are skipped.
+        Source rows whose audio fails to decode are also skipped.
+        """
         pair_key = f"{source_lang}-{target_lang}"
         if pair_key in self._parallel_cache:
             return self._parallel_cache[pair_key]
 
-        csv_path = self._parallel_files.get(pair_key)
-        if not csv_path:
-            raise ValueError(f"No parallel data for '{pair_key}'. "
-                           f"Available: {sorted(self._parallel_files.keys())}")
+        src_ds = self._load_hf_split(source_lang)
+        tgt_index = self._build_target_text_index(target_lang)
 
-        samples = []
-        with open(csv_path, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                # Column names use the FLEURS code as prefix:
-                #   sw_ke-id, sw_ke-path, sw_ke-transcript, sw_ke-gender,
-                #   en_us-id, en_us-path, en_us-transcript, en_us-gender
-                sample = ParallelAudioSample(
-                    source_audio_path=row[f'{source_lang}-path'],
-                    source_transcription=row[f'{source_lang}-transcript'],
+        samples: List[ParallelAudioSample] = []
+        skipped_no_target = 0
+        skipped_decode = 0
+        for row in src_ds:
+            sid = row["id"]
+            target_text = tgt_index.get(sid)
+            if target_text is None:
+                skipped_no_target += 1
+                continue
+
+            try:
+                audio = row["audio"]
+                samples.append(ParallelAudioSample(
+                    source_transcription=row["transcription"],
                     source_language=source_lang,
-                    target_transcription=row[f'{target_lang}-transcript'],
+                    target_transcription=target_text,
                     target_language=target_lang,
-                    sample_id=row[f'{source_lang}-id'],
-                )
-                samples.append(sample)
+                    sample_id=f"{sid}_{row.get('num_samples', len(samples))}",
+                    source_audio_array=np.asarray(audio["array"], dtype=np.float32),
+                    source_sampling_rate=int(audio["sampling_rate"]),
+                ))
+            except Exception as e:
+                skipped_decode += 1
+                if skipped_decode <= 3:
+                    print(f"  [{pair_key}] skipping row id={sid}: {e}")
+
+        if skipped_no_target or skipped_decode:
+            print(
+                f"  [{pair_key}] joined {len(samples)} pairs, "
+                f"skipped {skipped_no_target} (no target id), "
+                f"{skipped_decode} (undecodable audio)"
+            )
 
         self._parallel_cache[pair_key] = samples
         return samples
 
-    # ---- BaseASRDataset interface ----
-
-    def get_language_samples(self, language: str) -> List[AudioSample]:
-        return self._load_mono(language)
-
-    def list_languages(self) -> Set[str]:
-        return set(self._mono_files.keys())
-
-    def get_dataset_info(self) -> Dict[str, Any]:
-        mono_counts = {}
-        for lang in self._mono_files:
-            if lang in self._mono_cache:
-                mono_counts[lang] = len(self._mono_cache[lang])
-
-        return {
-            "dataset_name": "FLEURS",
-            "dataset_path": str(self.dataset_path),
-            "monolingual_languages": sorted(self._mono_files.keys()),
-            "num_monolingual_languages": len(self._mono_files),
-            "parallel_pairs": sorted(self._parallel_files.keys()),
-            "num_parallel_pairs": len(self._parallel_files),
-            "cached_mono_counts": mono_counts,
-        }
-
-    # ---- BaseASTDataset interface ----
-
-    def get_parallel_samples(self, source_lang: str,
-                             target_lang: str) -> List[ParallelAudioSample]:
+    def get_parallel_samples(
+        self, source_lang: str, target_lang: str
+    ) -> List[ParallelAudioSample]:
+        if source_lang not in FLEURS_LANGUAGES or target_lang not in FLEURS_LANGUAGES:
+            raise ValueError(
+                f"Unknown FLEURS language in pair {source_lang}->{target_lang}"
+            )
         return self._load_parallel(source_lang, target_lang)
 
     def list_language_pairs(self) -> Set[tuple]:
-        pairs = set()
-        for pair_key in self._parallel_files:
-            src, tgt = pair_key.split("-", 1)
-            pairs.add((src, tgt))
-        return pairs
+        if self._allowed_pairs is not None:
+            return set(self._allowed_pairs)
+        langs = self._allowed_languages
+        return {(s, t) for s in langs for t in langs if s != t}
 
     def get_languages(self) -> Set[str]:
-        """Get all language codes (mono + parallel sources)."""
-        langs = set(self._mono_files.keys())
-        for pair_key in self._parallel_files:
-            src, tgt = pair_key.split("-", 1)
+        """All language codes seen in mono + parallel scope."""
+        langs = set(self._allowed_languages)
+        for src, tgt in self.list_language_pairs():
             langs.add(src)
             langs.add(tgt)
         return langs

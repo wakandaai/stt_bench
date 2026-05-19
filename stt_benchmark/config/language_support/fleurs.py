@@ -16,7 +16,7 @@ from typing import Dict, List, Optional, Set
 FLEURS_LANGUAGES = {
     "af_za": {"name": "Afrikaans", "iso639_3": "afr", "iso639_1": "af", "script": "Latn"},
     "am_et": {"name": "Amharic", "iso639_3": "amh", "iso639_1": "am", "script": "Ethi"},
-    "ar_eg": {"name": "Arabic", "iso639_3": "arb", "iso639_1": "ar", "script": "Arab"},
+    "ar_eg": {"name": "Arabic", "iso639_3": "ara", "iso639_1": "ar", "script": "Arab"},
     "as_in": {"name": "Assamese", "iso639_3": "asm", "iso639_1": "as", "script": "Beng"},
     "ast_es": {"name": "Asturian", "iso639_3": "ast", "iso639_1": None, "script": "Latn"},
     "az_az": {"name": "Azerbaijani", "iso639_3": "azj", "iso639_1": "az", "script": "Latn"},
