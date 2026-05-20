@@ -10,6 +10,7 @@ from stt_benchmark.models.hf.mms import MMSModel
 from stt_benchmark.models.hf.seamless import SeamlessModel
 from stt_benchmark.models.hf.cascaded import CascadedMmsNllbModel
 from stt_benchmark.models.hf.speech_aura import SpeechAuraModel
+from stt_benchmark.models.hf.ctc_encoder import CTCEncoderModel
 
 
 class ModelFactory:
@@ -21,6 +22,7 @@ class ModelFactory:
         "seamless": SeamlessModel,
         "cascaded": CascadedMmsNllbModel,
         "speech_aura": SpeechAuraModel,
+        "ctc_encoder": CTCEncoderModel,
     }
 
     @classmethod
@@ -32,7 +34,7 @@ class ModelFactory:
             config_path: Path to models.yaml (default: stt_benchmark/config/models.yaml)
 
         Returns:
-            Model instance (WhisperModel, MMSModel, SeamlessModel, or CascadedMmsNllbModel)
+            Model instance.
         """
         if config_path is None:
             config_path = Path(__file__).parent.parent / "config" / "models.yaml"
@@ -51,7 +53,6 @@ class ModelFactory:
         model_type = model_config.get("model_type")
 
         if model_type is None:
-            # Try to infer from model_name
             model_type = cls._infer_model_type(model_id, model_name)
 
         if model_type not in cls._model_registry:
