@@ -53,6 +53,7 @@ class EvaluationPipeline:
         dataset: BaseASRDataset,
         language: str,
         experiment_name: str,
+        dataset_name: str,
         batch_size: Optional[int] = None,
     ) -> Optional[ASREvaluationResult]:
         if self.skip_unsupported and not model.supports_language(language):
@@ -60,11 +61,11 @@ class EvaluationPipeline:
             return None
 
         model_name = model.get_model_info()["model_name"]
-        print(f"🎙️  ASR: {model_name} on {language}")
+        print(f"🎙️  ASR: {model_name} on {dataset_name}/{language}")
 
         samples = dataset.get_language_samples(language)
         if not samples:
-            raise ValueError(f"No samples for {language}")
+            raise ValueError(f"No samples for {language} in {dataset_name}")
 
         bs = batch_size or self.batch_size
         start_time = time.time()
@@ -84,37 +85,9 @@ class EvaluationPipeline:
             total_time=total_time,
         )
 
-        self._save_asr_result(result)
+        self._save_asr_result(result, dataset_name)
         print(f"  WER: {metrics.wer:.2f}%, CER: {metrics.cer:.2f}%")
         return result
-
-    def evaluate_asr_all_languages(
-        self,
-        model: BaseASRModel,
-        dataset: BaseASRDataset,
-        experiment_name: str,
-        languages: Optional[List[str]] = None,
-        batch_size: Optional[int] = None,
-    ) -> List[ASREvaluationResult]:
-        langs = languages or sorted(dataset.list_languages())
-        model_name = model.get_model_info()["model_name"]
-        print(f"Evaluating ASR: {model_name} on {len(langs)} languages")
-
-        results = []
-        for lang in tqdm(langs, desc="ASR languages"):
-            try:
-                result = self.evaluate_asr(
-                    model, dataset, lang, experiment_name, batch_size
-                )
-                if result is not None:
-                    results.append(result)
-            except Exception as e:
-                print(f"  Error on {lang}: {e}")
-                continue
-
-        if results:
-            self._save_asr_summary(results, experiment_name)
-        return results
 
     def _run_asr_inference(
         self,
@@ -165,6 +138,7 @@ class EvaluationPipeline:
         source_lang: str,
         target_lang: str,
         experiment_name: str,
+        dataset_name: str,
         batch_size: Optional[int] = None,
     ) -> Optional[ASTEvaluationResult]:
         if self.skip_unsupported and not model.supports_language_pair(
@@ -174,11 +148,13 @@ class EvaluationPipeline:
             return None
 
         model_name = model.get_model_info()["model_name"]
-        print(f"🌐 AST: {model_name} on {source_lang}→{target_lang}")
+        print(f"🌐 AST: {model_name} on {dataset_name}/{source_lang}→{target_lang}")
 
         samples = dataset.get_parallel_samples(source_lang, target_lang)
         if not samples:
-            raise ValueError(f"No parallel samples for {source_lang}→{target_lang}")
+            raise ValueError(
+                f"No parallel samples for {source_lang}→{target_lang} in {dataset_name}"
+            )
 
         bs = batch_size or self.batch_size
         start_time = time.time()
@@ -201,39 +177,9 @@ class EvaluationPipeline:
             total_time=total_time,
         )
 
-        self._save_ast_result(result)
+        self._save_ast_result(result, dataset_name)
         print(f"  BLEU: {metrics.bleu:.2f}, chrF++: {metrics.chrf:.2f}")
         return result
-
-    def evaluate_ast_all_pairs(
-        self,
-        model: BaseASTModel,
-        dataset: BaseASTDataset,
-        experiment_name: str,
-        pairs: Optional[List[tuple]] = None,
-        batch_size: Optional[int] = None,
-    ) -> List[ASTEvaluationResult]:
-        if pairs is None:
-            pairs = sorted(dataset.list_language_pairs())
-
-        model_name = model.get_model_info()["model_name"]
-        print(f"Evaluating AST: {model_name} on {len(pairs)} pairs")
-
-        results = []
-        for src, tgt in tqdm(pairs, desc="AST pairs"):
-            try:
-                result = self.evaluate_ast(
-                    model, dataset, src, tgt, experiment_name, batch_size
-                )
-                if result is not None:
-                    results.append(result)
-            except Exception as e:
-                print(f"  Error on {src}→{tgt}: {e}")
-                continue
-
-        if results:
-            self._save_ast_summary(results, experiment_name)
-        return results
 
     def _run_ast_inference(
         self,
@@ -289,10 +235,13 @@ class EvaluationPipeline:
     # Save Results
     # ====================================================================
 
-    def _save_asr_result(self, result: ASREvaluationResult):
-        exp_dir = self.output_dir / result.experiment_name
+    def _dataset_dir(self, experiment_name: str, dataset_name: str) -> Path:
+        return self.output_dir / experiment_name / dataset_name
 
-        pred_dir = exp_dir / "predictions"
+    def _save_asr_result(self, result: ASREvaluationResult, dataset_name: str):
+        ds_dir = self._dataset_dir(result.experiment_name, dataset_name)
+
+        pred_dir = ds_dir / "predictions"
         pred_dir.mkdir(parents=True, exist_ok=True)
         csv_path = pred_dir / f"{result.model_name}_asr_{result.language}.csv"
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
@@ -303,7 +252,7 @@ class EvaluationPipeline:
                     [pred.sample_id, pred.reference, pred.hypothesis, pred.audio_path]
                 )
 
-        metrics_dir = exp_dir / "metrics"
+        metrics_dir = ds_dir / "metrics"
         metrics_dir.mkdir(parents=True, exist_ok=True)
         metrics_path = (
             metrics_dir / f"{result.model_name}_asr_{result.language}_metrics.json"
@@ -311,6 +260,7 @@ class EvaluationPipeline:
         metrics_data = {
             "task": "asr",
             "model_name": result.model_name,
+            "dataset": dataset_name,
             "language": result.language,
             "wer": result.metrics.wer,
             "cer": result.metrics.cer,
@@ -326,14 +276,14 @@ class EvaluationPipeline:
         with open(metrics_path, "w") as f:
             json.dump(metrics_data, f, indent=2)
 
-    def _save_ast_result(self, result: ASTEvaluationResult):
-        exp_dir = self.output_dir / result.experiment_name
+    def _save_ast_result(self, result: ASTEvaluationResult, dataset_name: str):
+        ds_dir = self._dataset_dir(result.experiment_name, dataset_name)
 
         has_intermediate = any(
             p.intermediate_transcript is not None for p in result.predictions
         )
 
-        pred_dir = exp_dir / "predictions"
+        pred_dir = ds_dir / "predictions"
         pred_dir.mkdir(parents=True, exist_ok=True)
         csv_path = (
             pred_dir
@@ -364,7 +314,7 @@ class EvaluationPipeline:
                     row.append(pred.intermediate_transcript or "")
                 writer.writerow(row)
 
-        metrics_dir = exp_dir / "metrics"
+        metrics_dir = ds_dir / "metrics"
         metrics_dir.mkdir(parents=True, exist_ok=True)
         metrics_path = (
             metrics_dir
@@ -373,6 +323,7 @@ class EvaluationPipeline:
         metrics_data = {
             "task": "ast",
             "model_name": result.model_name,
+            "dataset": dataset_name,
             "source_lang": result.source_lang,
             "target_lang": result.target_lang,
             "bleu": result.metrics.bleu,
@@ -389,60 +340,3 @@ class EvaluationPipeline:
         }
         with open(metrics_path, "w") as f:
             json.dump(metrics_data, f, indent=2)
-
-    def _save_asr_summary(
-        self, results: List[ASREvaluationResult], experiment_name: str
-    ):
-        exp_dir = self.output_dir / experiment_name
-        summary_path = exp_dir / f"{experiment_name}_asr_summary.csv"
-        with open(summary_path, "w", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow(
-                ["model_name", "language", "wer", "cer", "num_samples", "total_time"]
-            )
-            for r in results:
-                writer.writerow(
-                    [
-                        r.model_name,
-                        r.language,
-                        r.metrics.wer,
-                        r.metrics.cer,
-                        r.metrics.num_samples,
-                        r.total_time,
-                    ]
-                )
-        print(f"ASR summary saved to {summary_path}")
-
-    def _save_ast_summary(
-        self, results: List[ASTEvaluationResult], experiment_name: str
-    ):
-        exp_dir = self.output_dir / experiment_name
-        summary_path = exp_dir / f"{experiment_name}_ast_summary.csv"
-        with open(summary_path, "w", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow(
-                [
-                    "model_name",
-                    "language_pair",
-                    "source_lang",
-                    "target_lang",
-                    "bleu",
-                    "chrf",
-                    "num_samples",
-                    "total_time",
-                ]
-            )
-            for r in results:
-                writer.writerow(
-                    [
-                        r.model_name,
-                        f"{r.source_lang}→{r.target_lang}",
-                        r.source_lang,
-                        r.target_lang,
-                        r.metrics.bleu,
-                        r.metrics.chrf,
-                        r.metrics.num_samples,
-                        r.total_time,
-                    ]
-                )
-        print(f"AST summary saved to {summary_path}")

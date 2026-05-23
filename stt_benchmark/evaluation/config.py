@@ -3,81 +3,99 @@
 """
 Evaluation config loader.
 
-Reads a YAML eval config and produces concrete lists of:
-  - ASR languages
-  - AST (source, target) pairs
+Reads a YAML eval config and produces a list of per-dataset evaluation specs.
+Each dataset block declares which languages / pairs to evaluate against
+*that dataset specifically*.
 
-Supports anchor-based shorthand for AST with configurable direction:
-    ast:
-      anchors: [en_us, fr_fr]
-      direction: both          # "forward", "reverse", or "both"
+Schema:
+    experiment_name: my_eval
 
-Direction controls how anchors expand:
-  - "forward":  source → anchor  (source audio, anchor text)
-  - "reverse":  anchor → source  (anchor audio, source text)
-  - "both":     both directions
+    datasets:
+      <dataset_name>:
+        # Arbitrary dataset-specific kwargs (split, root, etc.) pass through
+        # to the dataset constructor via the registry.
+        split: test
+        root: /path/to/local/data            # only for local datasets
+
+        asr:
+          languages: [sw_ke, yo_ng, ...]
+
+        ast:
+          # Either anchor-style:
+          sources: [sw_ke, yo_ng]             # defaults to asr.languages
+          anchors: [en_us]
+          direction: forward                   # "forward" | "reverse" | "both"
+
+          # Or explicit pairs (additive with anchor expansion):
+          pairs:
+            - [bem, en_us]
+
+Dataset-specific config keys (anything not 'asr' or 'ast') is passed to the
+dataset constructor as **kwargs.
 """
 
 import yaml
 from pathlib import Path
-from dataclasses import dataclass
-from typing import List, Tuple, Set
+from dataclasses import dataclass, field
+from typing import List, Tuple, Set, Dict, Any
+
+
+@dataclass
+class DatasetEvalSpec:
+    """Evaluation plan for a single dataset."""
+    dataset_name: str
+    dataset_kwargs: Dict[str, Any]
+    asr_languages: List[str]
+    ast_pairs: List[Tuple[str, str]]
+
+    def has_asr(self) -> bool:
+        return len(self.asr_languages) > 0
+
+    def has_ast(self) -> bool:
+        return len(self.ast_pairs) > 0
+
+    def summary(self) -> str:
+        lines = [f"  Dataset: {self.dataset_name}"]
+        if self.dataset_kwargs:
+            kw = ", ".join(f"{k}={v}" for k, v in self.dataset_kwargs.items())
+            lines.append(f"    kwargs: {kw}")
+        lines.append(f"    ASR languages: {len(self.asr_languages)}")
+        if self.asr_languages:
+            lines.append(f"      {', '.join(self.asr_languages)}")
+        lines.append(f"    AST pairs: {len(self.ast_pairs)}")
+        if self.ast_pairs and len(self.ast_pairs) <= 10:
+            for src, tgt in self.ast_pairs:
+                lines.append(f"      {src} → {tgt}")
+        elif self.ast_pairs:
+            for src, tgt in self.ast_pairs[:5]:
+                lines.append(f"      {src} → {tgt}")
+            lines.append(f"      ... and {len(self.ast_pairs) - 5} more")
+        return "\n".join(lines)
 
 
 @dataclass
 class EvalConfig:
-    """Parsed evaluation configuration."""
+    """Parsed evaluation configuration — one experiment, many datasets."""
     experiment_name: str
-    asr_languages: List[str]
-    ast_pairs: List[Tuple[str, str]]
+    datasets: List[DatasetEvalSpec] = field(default_factory=list)
 
     def summary(self) -> str:
         lines = [
             f"Experiment: {self.experiment_name}",
-            f"ASR languages: {len(self.asr_languages)}",
+            f"Datasets: {len(self.datasets)}",
         ]
-        if self.asr_languages:
-            lines.append(f"  {', '.join(self.asr_languages)}")
-        lines.append(f"AST pairs: {len(self.ast_pairs)}")
-        if self.ast_pairs and len(self.ast_pairs) <= 20:
-            for src, tgt in self.ast_pairs:
-                lines.append(f"  {src} → {tgt}")
-        elif self.ast_pairs:
-            for src, tgt in self.ast_pairs[:10]:
-                lines.append(f"  {src} → {tgt}")
-            lines.append(f"  ... and {len(self.ast_pairs) - 10} more")
+        for spec in self.datasets:
+            lines.append(spec.summary())
         return "\n".join(lines)
 
 
-def load_eval_config(config_path: str) -> EvalConfig:
-    """Load and expand an evaluation config YAML.
+def _expand_ast(ast_section: Dict[str, Any],
+                default_sources: List[str]) -> List[Tuple[str, str]]:
+    """Expand the ast: block into a list of (source, target) pairs.
 
-    Args:
-        config_path: Path to the eval config YAML file.
-
-    Returns:
-        EvalConfig with concrete language lists and pair lists.
+    Supports anchor-style expansion + explicit `pairs:` list, additive.
     """
-    config_path = Path(config_path)
-    if not config_path.exists():
-        raise FileNotFoundError(f"Eval config not found: {config_path}")
-
-    with open(config_path, "r") as f:
-        raw = yaml.safe_load(f)
-
-    experiment_name = raw.get("experiment_name", config_path.stem)
-
-    # ── ASR ──────────────────────────────────────────────────────────────
-    asr_section = raw.get("asr", {})
-    asr_languages: List[str] = asr_section.get("languages", [])
-
-    # ── AST ──────────────────────────────────────────────────────────────
-    ast_section = raw.get("ast", {})
-
-    # Source languages: explicit list, or fall back to ASR languages
-    ast_sources: List[str] = ast_section.get("sources", asr_languages)
-
-    # Anchors and direction
+    sources: List[str] = ast_section.get("sources", default_sources)
     anchors: List[str] = ast_section.get("anchors", [])
     direction: str = ast_section.get("direction", "both")
 
@@ -87,31 +105,80 @@ def load_eval_config(config_path: str) -> EvalConfig:
             f"Must be 'forward', 'reverse', or 'both'."
         )
 
-    # Expand anchors based on direction
-    ast_pairs: List[Tuple[str, str]] = []
+    pairs: List[Tuple[str, str]] = []
     seen: Set[Tuple[str, str]] = set()
 
     def _add(src: str, tgt: str):
         pair = (src, tgt)
         if src != tgt and pair not in seen:
-            ast_pairs.append(pair)
+            pairs.append(pair)
             seen.add(pair)
 
-    for src in ast_sources:
+    for src in sources:
         for anchor in anchors:
             if direction in ("forward", "both"):
-                _add(src, anchor)       # source audio → anchor text
+                _add(src, anchor)
             if direction in ("reverse", "both"):
-                _add(anchor, src)       # anchor audio → source text
+                _add(anchor, src)
 
-    # Extra explicit pairs (always added regardless of direction)
-    extra_pairs = ast_section.get("extra_pairs", [])
-    if extra_pairs:
-        for entry in extra_pairs:
+    # Explicit pairs are always added regardless of direction.
+    explicit_pairs = ast_section.get("pairs", [])
+    for entry in explicit_pairs:
+        if isinstance(entry, (list, tuple)) and len(entry) == 2:
+            _add(entry[0], entry[1])
+        elif isinstance(entry, dict) and "source" in entry and "target" in entry:
             _add(entry["source"], entry["target"])
+        else:
+            raise ValueError(
+                f"Invalid ast.pairs entry: {entry}. "
+                f"Expected [src, tgt] or {{source: ..., target: ...}}."
+            )
 
-    return EvalConfig(
-        experiment_name=experiment_name,
+    return pairs
+
+
+def _parse_dataset_block(name: str, block: Dict[str, Any]) -> DatasetEvalSpec:
+    """Parse a single dataset block from the YAML."""
+    block = block or {}
+
+    asr_section = block.get("asr", {}) or {}
+    ast_section = block.get("ast", {}) or {}
+
+    asr_languages: List[str] = asr_section.get("languages", [])
+    ast_pairs = _expand_ast(ast_section, default_sources=asr_languages)
+
+    # Everything that isn't asr/ast is passed to the dataset constructor.
+    dataset_kwargs = {k: v for k, v in block.items() if k not in ("asr", "ast")}
+
+    return DatasetEvalSpec(
+        dataset_name=name,
+        dataset_kwargs=dataset_kwargs,
         asr_languages=asr_languages,
         ast_pairs=ast_pairs,
     )
+
+
+def load_eval_config(config_path: str) -> EvalConfig:
+    """Load and parse an evaluation config YAML."""
+    config_path = Path(config_path)
+    if not config_path.exists():
+        raise FileNotFoundError(f"Eval config not found: {config_path}")
+
+    with open(config_path, "r") as f:
+        raw = yaml.safe_load(f)
+
+    experiment_name = raw.get("experiment_name", config_path.stem)
+
+    datasets_section = raw.get("datasets", {})
+    if not datasets_section:
+        raise ValueError(
+            f"No 'datasets:' block found in {config_path}. "
+            f"Eval configs must specify at least one dataset."
+        )
+
+    specs = [
+        _parse_dataset_block(name, block)
+        for name, block in datasets_section.items()
+    ]
+
+    return EvalConfig(experiment_name=experiment_name, datasets=specs)

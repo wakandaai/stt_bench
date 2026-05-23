@@ -1,64 +1,68 @@
 # configs/african_evaluation.yaml
-
-# African-language-focused evaluation.
+#
+# African-language-focused evaluation, per-dataset.
+#
 # Run with:
-#   python scripts/evaluate.py whisper_large_v3 --eval-config stt_benchmark/config/eval_configs/african_eval.yaml
+#   python scripts/evaluate.py whisper_large_v3 --eval-config configs/african_evaluation.yaml
 
 experiment_name: african_eval
 
-# ── ASR ──────────────────────────────────────────────────────────────────────
-# Languages to evaluate for automatic speech recognition.
-asr:
-  languages:
-    - af_za    # Afrikaans
-    - am_et    # Amharic
-    - ha_ng    # Hausa
-    - ig_ng    # Igbo
-    - lg_ug    # Luganda
-    - ln_cd    # Lingala
-    - sn_zw    # Shona
-    - so_so    # Somali
-    - sw_ke    # Swahili
-    - wo_sn    # Wolof
-    - xh_za    # Xhosa
-    - yo_ng    # Yoruba
-    - zu_za    # Zulu
-    - en_us    # English
-    - ar_eg    # Arabic
-    - fr_fr    # French
-    - pt_br    # Portuguese
-    # - bem      # Bemba
-    # - rw_rw    # Kinyarwanda
-    # - tsn_za   # Tswana
-    # - tigrinya  # Tigrinya
-    # - sesotho   # Southern Sotho
-    # - malagasy   # Malagasy
+datasets:
 
+  fleurs:
+    split: test
+    asr:
+      languages:
+        - am_et    # Amharic
+        - ha_ng    # Hausa
+        - ig_ng    # Igbo
+        - lg_ug    # Luganda
+        - ln_cd    # Lingala
+        - sn_zw    # Shona
+        - sw_ke    # Swahili
+        - xh_za    # Xhosa
+        - yo_ng    # Yoruba
+        - zu_za    # Zulu
+        - en_us    # English
+        - ar_eg    # Arabic
+        - fr_fr    # French
+        - pt_br    # Portuguese
+    ast:
+      sources: [am_et, ha_ng, ig_ng, lg_ug, ln_cd, sn_zw, sw_ke, xh_za, yo_ng, zu_za, en_us, ar_eg, fr_fr, pt_br]
+      anchors: [en_us]
+      direction: both
 
-# ── AST ──────────────────────────────────────────────────────────────────────
-# Each source language is paired with each anchor.
-#
-# direction controls how pairs expand:
-#   "forward"  — source → anchor  (source audio, anchor text)
-#   "reverse"  — anchor → source  (anchor audio, source text)
-#   "both"     — both directions
-#
-# FLEURS parallel data is structured as {source}-{target}.csv where source
-# has the audio. So use "forward" to match data like sw_ke-en_us.csv,
-# or "both" if your dataset also has en_us-sw_ke.csv.
-# ast:
-#   # Sources default to asr.languages when omitted
-#   # sources:
-#   #   - sw_ke
-#   #   - yo_ng
+  mbaza_fleurs_rw:
+    local_path: /ocean/projects/cis250145p/shared/datasets/mbazaNLP_fleurs-kinyarwanda
+    split: test
+    asr:
+      languages: [rw_rw]
+    ast:
+      sources: [rw_rw]
+      anchors: [en_us]
+      direction: both
 
-#   anchors:
-#     - en_us    # English
-#     - fr_fr    # French
+  bembaspeech:
+    local_path: /ocean/projects/cis250145p/shared/datasets/bemba_speech/BembaSpeech/bem
+    split: test
+    asr:
+      languages: [bem]
 
-#   direction: both   # source → anchor AND anchor → source
+  bigc:
+    local_path: /ocean/projects/cis250145p/shared/datasets/bigc/data/bem
+    split: test
+    asr:
+      languages: [bem]
+    ast:
+      pairs:
+        - [bem, en_us]
 
-  # Optional: additional explicit pairs
-  # extra_pairs:
-  #   - source: ar_eg
-  #     target: sw_ke
+  nchlt:
+    local_path: /ocean/projects/cis250145p/shared/datasets/NCHLT
+    split: test
+    asr:
+      languages:
+        - st_za
+        - tn_za
+        - xh_za
+        - zu_za

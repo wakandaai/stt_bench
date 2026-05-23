@@ -5,29 +5,30 @@ from typing import Optional, Set, Tuple
 from stt_benchmark.config.language_support.fleurs import FLEURS_LANGUAGES
 
 # FLEURS code -> SpeechAura's internal language name (matches LANG_MAP in aura.py).
-# Training set: 23 languages from configs/experiment/stage1.yaml (Bemba excluded —
-# not in FLEURS). Tigrinya and Kinyarwanda are in the training set but not in FLEURS
-# either; they're listed in comments below for reference but cannot be evaluated here.
+# Training set: 23 languages from configs/experiment/stage1.yaml. Tigrinya is
+# in the training set but has no FLEURS code (no community FLEURS-style dataset
+# yet either) — listed in comments below for reference but cannot be evaluated.
 FLEURS_TO_AURA = {
     "af_za": "afrikaans",
     "am_et": "amharic",
     "ar_eg": "arabic",
-    # bemba         — trained, not in FLEURS
+    "bem": "bemba",            # via bembaspeech and bigc (not official FLEURS)
     "en_us": "english",
     "fr_fr": "french",
     "ha_ng": "hausa",
     "ig_ng": "igbo",
-    # rw_rw         — Kinyarwanda trained, not in FLEURS
+    "rw_rw": "kinyarwanda",    # via mbaza_fleurs_rw (not official FLEURS)
     "ln_cd": "lingala",
     "lg_ug": "luganda",
     "mg_mg": "malagasy",
     "pt_br": "portuguese",
     "sn_zw": "shona",
     "so_so": "somali",
-    # "nso_za": "sotho",   # FLEURS has Northern Sotho (nso); training "sotho" maps here
+    "st_za": "sotho",          # Sesotho / Southern Sotho — via nchlt (not in FLEURS).
+                               # Distinct from Northern Sotho (nso_za).
     "sw_ke": "swahili",
     # tigrinya      — trained, not in FLEURS
-    # tswana        — trained, not in FLEURS (no tn_za in FLEURS)
+    "tn_za": "tswana",         # Setswana — via nchlt (not official FLEURS)
     "wo_sn": "wolof",
     "xh_za": "xhosa",
     "yo_ng": "yoruba",

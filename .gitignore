@@ -3,3 +3,4 @@ stt_benchmark.egg-info/
 results/
 *.sh
 *.out
+reports/

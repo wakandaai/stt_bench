@@ -5,15 +5,13 @@ Summarize STT Benchmark Results
 Scans experiment result directories for per-language/pair metric JSON files
 and produces consolidated summary CSVs — one for ASR, one for AST.
 
+Expects the new layout:
+  results/<experiment>/<dataset>/metrics/<file>.json
+
 Usage:
-  # Summarize a single experiment
-  python scripts/summarize_results.py results/african_eval
-
-  # Summarize all experiments under results/
-  python scripts/summarize_results.py results/
-
-  # Custom output location
-  python scripts/summarize_results.py results/african_eval -o reports/
+  python utils/summarize_results.py results/african_eval
+  python utils/summarize_results.py results/
+  python utils/summarize_results.py results/african_eval -o reports/
 """
 
 import argparse
@@ -35,12 +33,25 @@ def load_metric(path: Path) -> Dict[str, Any]:
         return json.load(f)
 
 
-def build_summaries(metric_files: List[Path]):
-    """Parse metric files into separate ASR and AST record lists.
+def _derive_experiment_dataset(path: Path) -> tuple:
+    """Derive (experiment, dataset) from a metrics file path.
 
-    Returns:
-        (asr_rows, ast_rows) — each is a list of dicts.
+    Expected layout: results/<experiment>/<dataset>/metrics/<file>.json
+    Falls back gracefully if the dataset segment is missing.
     """
+    # path.parent is .../metrics, parent.parent is the dataset dir,
+    # parent.parent.parent is the experiment dir.
+    try:
+        dataset = path.parent.parent.name
+        experiment = path.parent.parent.parent.name
+    except Exception:
+        dataset = ""
+        experiment = path.parent.parent.name
+    return experiment, dataset
+
+
+def build_summaries(metric_files: List[Path]):
+    """Parse metric files into separate ASR and AST record lists."""
     asr_rows: List[Dict[str, Any]] = []
     ast_rows: List[Dict[str, Any]] = []
 
@@ -52,14 +63,15 @@ def build_summaries(metric_files: List[Path]):
             continue
 
         task = data.get("task", "")
-
-        # Derive experiment name from directory structure:
-        #   results/<experiment>/metrics/<file>.json
-        experiment = path.parent.parent.name
+        experiment, dataset_from_path = _derive_experiment_dataset(path)
+        # Prefer the dataset name written into the JSON (authoritative),
+        # fall back to the path-derived one.
+        dataset = data.get("dataset", dataset_from_path)
 
         if task == "asr":
             asr_rows.append({
                 "experiment": experiment,
+                "dataset": dataset,
                 "model_name": data.get("model_name", ""),
                 "language": data.get("language", ""),
                 "wer": data.get("wer"),
@@ -71,6 +83,7 @@ def build_summaries(metric_files: List[Path]):
         elif task == "ast":
             ast_rows.append({
                 "experiment": experiment,
+                "dataset": dataset,
                 "model_name": data.get("model_name", ""),
                 "source_lang": data.get("source_lang", ""),
                 "target_lang": data.get("target_lang", ""),
@@ -83,9 +96,13 @@ def build_summaries(metric_files: List[Path]):
         else:
             print(f"⚠️  Unknown task '{task}' in {path}", file=sys.stderr)
 
-    # Sort for readability
-    asr_rows.sort(key=lambda r: (r["experiment"], r["model_name"], r["language"]))
-    ast_rows.sort(key=lambda r: (r["experiment"], r["model_name"], r["source_lang"], r["target_lang"]))
+    asr_rows.sort(key=lambda r: (
+        r["experiment"], r["dataset"], r["model_name"], r["language"]
+    ))
+    ast_rows.sort(key=lambda r: (
+        r["experiment"], r["dataset"], r["model_name"],
+        r["source_lang"], r["target_lang"],
+    ))
 
     return asr_rows, ast_rows
 
@@ -104,53 +121,57 @@ def write_csv(rows: List[Dict[str, Any]], path: Path):
 
 
 def print_asr_table(rows: List[Dict[str, Any]]):
-    """Pretty-print ASR summary to stdout."""
+    """Pretty-print ASR summary to stdout, grouped by (model, dataset)."""
     if not rows:
         return
-    # Group by model
-    models = sorted(set(r["model_name"] for r in rows))
-    for model in models:
-        model_rows = [r for r in rows if r["model_name"] == model]
+    groups = sorted(set((r["model_name"], r["dataset"]) for r in rows))
+    for model, dataset in groups:
+        group_rows = [
+            r for r in rows
+            if r["model_name"] == model and r["dataset"] == dataset
+        ]
         print(f"\n{'─'*60}")
-        print(f"  Model: {model}")
+        print(f"  Model: {model}   Dataset: {dataset}")
         print(f"{'─'*60}")
         print(f"  {'Language':<12} {'WER':>8} {'CER':>8} {'Samples':>8} {'Time(s)':>9}")
         print(f"  {'─'*12} {'─'*8} {'─'*8} {'─'*8} {'─'*9}")
-        for r in sorted(model_rows, key=lambda x: x["language"]):
+        for r in sorted(group_rows, key=lambda x: x["language"]):
             wer = f"{r['wer']:.2f}%" if r["wer"] is not None else "N/A"
             cer = f"{r['cer']:.2f}%" if r["cer"] is not None else "N/A"
             n = r["num_samples"] or ""
             t = f"{r['total_time']:.1f}" if r["total_time"] is not None else "N/A"
             print(f"  {r['language']:<12} {wer:>8} {cer:>8} {str(n):>8} {t:>9}")
-        # Average WER/CER
-        wers = [r["wer"] for r in model_rows if r["wer"] is not None]
-        cers = [r["cer"] for r in model_rows if r["cer"] is not None]
+        wers = [r["wer"] for r in group_rows if r["wer"] is not None]
+        cers = [r["cer"] for r in group_rows if r["cer"] is not None]
         if wers:
             print(f"  {'─'*12} {'─'*8} {'─'*8}")
             print(f"  {'Average':<12} {sum(wers)/len(wers):>7.2f}% {sum(cers)/len(cers):>7.2f}%")
 
 
 def print_ast_table(rows: List[Dict[str, Any]]):
-    """Pretty-print AST summary to stdout."""
+    """Pretty-print AST summary to stdout, grouped by (model, dataset)."""
     if not rows:
         return
-    models = sorted(set(r["model_name"] for r in rows))
-    for model in models:
-        model_rows = [r for r in rows if r["model_name"] == model]
+    groups = sorted(set((r["model_name"], r["dataset"]) for r in rows))
+    for model, dataset in groups:
+        group_rows = [
+            r for r in rows
+            if r["model_name"] == model and r["dataset"] == dataset
+        ]
         print(f"\n{'─'*60}")
-        print(f"  Model: {model}")
+        print(f"  Model: {model}   Dataset: {dataset}")
         print(f"{'─'*60}")
         print(f"  {'Pair':<20} {'BLEU':>8} {'chrF++':>8} {'Samples':>8} {'Time(s)':>9}")
         print(f"  {'─'*20} {'─'*8} {'─'*8} {'─'*8} {'─'*9}")
-        for r in sorted(model_rows, key=lambda x: (x["source_lang"], x["target_lang"])):
+        for r in sorted(group_rows, key=lambda x: (x["source_lang"], x["target_lang"])):
             pair = f"{r['source_lang']}→{r['target_lang']}"
             bleu = f"{r['bleu']:.2f}" if r["bleu"] is not None else "N/A"
             chrf = f"{r['chrf']:.2f}" if r["chrf"] is not None else "N/A"
             n = r["num_samples"] or ""
             t = f"{r['total_time']:.1f}" if r["total_time"] is not None else "N/A"
             print(f"  {pair:<20} {bleu:>8} {chrf:>8} {str(n):>8} {t:>9}")
-        bleus = [r["bleu"] for r in model_rows if r["bleu"] is not None]
-        chrfs = [r["chrf"] for r in model_rows if r["chrf"] is not None]
+        bleus = [r["bleu"] for r in group_rows if r["bleu"] is not None]
+        chrfs = [r["chrf"] for r in group_rows if r["chrf"] is not None]
         if bleus:
             print(f"  {'─'*20} {'─'*8} {'─'*8}")
             print(f"  {'Average':<20} {sum(bleus)/len(bleus):>8.2f} {sum(chrfs)/len(chrfs):>8.2f}")
@@ -160,12 +181,6 @@ def main():
     parser = argparse.ArgumentParser(
         description="Summarize STT benchmark metric files into CSVs",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python scripts/summarize_results.py results/african_eval
-  python scripts/summarize_results.py results/
-  python scripts/summarize_results.py results/ -o reports/ --no-print
-        """,
     )
     parser.add_argument(
         "results_dir",
@@ -199,7 +214,6 @@ Examples:
 
     asr_rows, ast_rows = build_summaries(metric_files)
 
-    # Write CSVs
     if asr_rows:
         write_csv(asr_rows, output_dir / "asr_summary.csv")
     if ast_rows:
@@ -209,7 +223,6 @@ Examples:
         print("No valid ASR or AST results found.")
         sys.exit(0)
 
-    # Print tables
     if not args.no_print:
         if asr_rows:
             print(f"\n{'='*60}")

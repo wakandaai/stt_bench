@@ -7,6 +7,10 @@ Maps between FLEURS language codes (e.g., 'sw_ke'), ISO 639-3 codes (e.g., 'swh'
 and model-specific codes for Whisper, MMS, and SeamlessM4T.
 
 FLEURS uses BCP-47-like codes: {iso639-1}_{country} (e.g., 'af_za', 'sw_ke').
+
+Note: this catalog also includes a handful of languages that are NOT in
+official Google FLEURS but that our benchmark supports via community-released
+FLEURS-style datasets or local datasets. Those entries are flagged in comments.
 """
 
 from typing import Dict, List, Optional, Set
@@ -21,6 +25,9 @@ FLEURS_LANGUAGES = {
     "ast_es": {"name": "Asturian", "iso639_3": "ast", "iso639_1": None, "script": "Latn"},
     "az_az": {"name": "Azerbaijani", "iso639_3": "azj", "iso639_1": "az", "script": "Latn"},
     "be_by": {"name": "Belarusian", "iso639_3": "bel", "iso639_1": "be", "script": "Cyrl"},
+    # Bemba — NOT in official Google FLEURS. Listed here so the bembaspeech and
+    # bigc datasets can use a first-class language code in our benchmark.
+    "bem": {"name": "Bemba", "iso639_3": "bem", "iso639_1": None, "script": "Latn"},
     "bg_bg": {"name": "Bulgarian", "iso639_3": "bul", "iso639_1": "bg", "script": "Cyrl"},
     "bn_in": {"name": "Bengali", "iso639_3": "ben", "iso639_1": "bn", "script": "Beng"},
     "bs_ba": {"name": "Bosnian", "iso639_3": "bos", "iso639_1": "bs", "script": "Latn"},
@@ -94,18 +101,29 @@ FLEURS_LANGUAGES = {
     "pt_br": {"name": "Portuguese", "iso639_3": "por", "iso639_1": "pt", "script": "Latn"},
     "ro_ro": {"name": "Romanian", "iso639_3": "ron", "iso639_1": "ro", "script": "Latn"},
     "ru_ru": {"name": "Russian", "iso639_3": "rus", "iso639_1": "ru", "script": "Cyrl"},
+    # Kinyarwanda — NOT in official Google FLEURS. Listed here so the
+    # mbaza_fleurs_rw dataset (community-released FLEURS-style corpus from
+    # mbazaNLP) can use a first-class language code in our benchmark.
+    "rw_rw": {"name": "Kinyarwanda", "iso639_3": "kin", "iso639_1": "rw", "script": "Latn"},
     "sd_in": {"name": "Sindhi", "iso639_3": "snd", "iso639_1": "sd", "script": "Arab"},
     "sk_sk": {"name": "Slovak", "iso639_3": "slk", "iso639_1": "sk", "script": "Latn"},
     "sl_si": {"name": "Slovenian", "iso639_3": "slv", "iso639_1": "sl", "script": "Latn"},
     "sn_zw": {"name": "Shona", "iso639_3": "sna", "iso639_1": "sn", "script": "Latn"},
     "so_so": {"name": "Somali", "iso639_3": "som", "iso639_1": "so", "script": "Latn"},
     "sr_rs": {"name": "Serbian", "iso639_3": "srp", "iso639_1": "sr", "script": "Cyrl"},
+    # Sesotho / Southern Sotho — NOT in official Google FLEURS. Listed here so
+    # the nchlt dataset can use a first-class language code. Distinct from
+    # Northern Sotho (nso_za), which IS in FLEURS.
+    "st_za": {"name": "Sesotho", "iso639_3": "sot", "iso639_1": "st", "script": "Latn"},
     "sv_se": {"name": "Swedish", "iso639_3": "swe", "iso639_1": "sv", "script": "Latn"},
     "sw_ke": {"name": "Swahili", "iso639_3": "swh", "iso639_1": "sw", "script": "Latn"},
     "ta_in": {"name": "Tamil", "iso639_3": "tam", "iso639_1": "ta", "script": "Taml"},
     "te_in": {"name": "Telugu", "iso639_3": "tel", "iso639_1": "te", "script": "Telu"},
     "tg_tj": {"name": "Tajik", "iso639_3": "tgk", "iso639_1": "tg", "script": "Cyrl"},
     "th_th": {"name": "Thai", "iso639_3": "tha", "iso639_1": "th", "script": "Thai"},
+    # Tswana / Setswana — NOT in official Google FLEURS. Listed here so the
+    # nchlt dataset can use a first-class language code.
+    "tn_za": {"name": "Tswana", "iso639_3": "tsn", "iso639_1": "tn", "script": "Latn"},
     "tr_tr": {"name": "Turkish", "iso639_3": "tur", "iso639_1": "tr", "script": "Latn"},
     "uk_ua": {"name": "Ukrainian", "iso639_3": "ukr", "iso639_1": "uk", "script": "Cyrl"},
     "umb_ao": {"name": "Umbundu", "iso639_3": "umb", "iso639_1": None, "script": "Latn"},
@@ -122,9 +140,10 @@ FLEURS_LANGUAGES = {
 
 # Languages of interest for African-focused benchmarking
 AFRICAN_LANGUAGES = {
-    "af_za", "am_et", "ar_eg", "ff_sn", "ha_ng", "ig_ng", "kam_ke",
+    "af_za", "am_et", "ar_eg", "bem", "ff_sn", "ha_ng", "ig_ng", "kam_ke",
     "lg_ug", "ln_cd", "luo_ke", "mg_mg", "nso_za", "ny_mw", "om_et",
-    "sn_zw", "so_so", "sw_ke", "umb_ao", "wo_sn", "xh_za", "yo_ng", "zu_za",
+    "rw_rw", "sn_zw", "so_so", "st_za", "sw_ke", "tn_za", "umb_ao",
+    "wo_sn", "xh_za", "yo_ng", "zu_za",
 }
 
 # Target languages of interest (user-specified)
@@ -139,20 +158,20 @@ TARGET_LANGUAGES = {
     "ha_ng",    # Hausa
     "am_et",    # Amharic
     "mg_mg",    # Plateau Malagasy
-    # "rw_rw",  # Kinyarwanda — NOT in FLEURS
-    "xh_za",    # Xhosa — NOT in FLEURS (only source, not standard config)
+    "rw_rw",    # Kinyarwanda (via mbaza_fleurs_rw, not official FLEURS)
+    "xh_za",    # Xhosa
     "zu_za",    # Zulu
     "ny_mw",    # Chichewa/Nyanja
-    # "st_za",  # Sesotho — NOT in FLEURS
+    "st_za",    # Sesotho (via NCHLT, not official FLEURS)
     "sn_zw",    # Shona
     "ig_ng",    # Igbo
     "yo_ng",    # Yoruba
     # "ti_et",  # Tigrinya — NOT in FLEURS
     "lg_ug",    # Luganda
     "ln_cd",    # Lingala
-    # "tn_za",  # Setswana — NOT in FLEURS
+    "tn_za",    # Tswana (via NCHLT, not official FLEURS)
     "wo_sn",    # Wolof
-    # "bem",    # Bemba — NOT in FLEURS
+    "bem",      # Bemba (via bembaspeech and bigc, not official FLEURS)
     # "fon",    # Fongbe — NOT in FLEURS
 }
 

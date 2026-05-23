@@ -98,7 +98,7 @@ mms_1b_all_nllb_3b_cascaded:
   device_map: "auto"
   tasks: ["asr", "ast"]
   generation_config:
-    num_beams: 5
+    num_beams: 1
     max_new_tokens: 384
 
 mms_1b_fl102_nllb_3b_cascaded:
@@ -109,7 +109,7 @@ mms_1b_fl102_nllb_3b_cascaded:
   device_map: "auto"
   tasks: ["asr", "ast"]
   generation_config:
-    num_beams: 5
+    num_beams: 1
     max_new_tokens: 384
 
 # ============================================================================
@@ -122,7 +122,7 @@ mms_1b_fl102_nllb_3b_cascaded:
 speech_aura:
   model_type: "speech_aura"
   model_name: "speech_aura"
-  export_dir: "/ocean/projects/cis250145p/gichamba/stt/iwslt2026/exports/SpeechAura_1B"
+  export_dir: "/ocean/projects/cis250145p/gichamba/stt/iwslt2026/exports/SpeechAura_1B_V2"
   tasks: ["asr", "ast"]
   generation_config:
     max_new_tokens_asr: 128
@@ -137,5 +137,5 @@ speech_aura:
 ctc_encoder:
   model_type: "ctc_encoder"
   model_name: "ctc_encoder"
-  export_dir: "/ocean/projects/cis250145p/gichamba/stt/iwslt2026/exports/conformer_encoder_ctc"
+  export_dir: "/ocean/projects/cis250145p/gichamba/stt/iwslt2026/exports/conformer_encoder_20lang"
   tasks: ["asr"]
