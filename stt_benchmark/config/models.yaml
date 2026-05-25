@@ -150,3 +150,22 @@ ctc_encoder:
   model_name: "ctc_encoder"
   export_dir: "/ocean/projects/cis250145p/gichamba/stt/iwslt2026/exports/conformer_encoder_20lang"
   tasks: ["asr"]
+
+
+# ============================================================================
+# Meta Omnilingual ASR
+# Supports: ASR only (1600+ languages via {iso639_3}_{script} codes)
+# Pipeline handles resampling, mono conversion, normalization, and batching.
+# ============================================================================
+
+omni_asr_llm_1b:
+  model_name: "omniASR_LLM_1B"
+  model_type: "omni_asr"
+  torch_dtype: "bfloat16"
+  tasks: ["asr"]
+
+omni_asr_llm_3b:
+  model_name: "omniASR_LLM_3B"
+  model_type: "omni_asr"
+  torch_dtype: "bfloat16"
+  tasks: ["asr"]
