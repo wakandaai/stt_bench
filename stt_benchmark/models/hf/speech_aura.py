@@ -7,6 +7,12 @@ self-contained config.yaml with paths rewritten to point at sibling files,
 so we just `cd` into it conceptually (resolve paths relative to it) and
 hand the rewritten config to st.training.train_st.build_model.
 
+Two modes (set via `mode` in the YAML config, default 'transcribe'):
+  - 'transcribe': ASR-only model. transcribe() uses task='asr',
+                  translate() is unsupported (returns empty + warning).
+  - 'translate':  AST-only model. translate() uses task='st' (direct
+                  speech translation), transcribe() is unsupported.
+
 Requires `pip install -e .` of the iwslt2026 repo so `import st` works.
 """
 
@@ -36,9 +42,15 @@ class SpeechAuraModel(BaseSTTModel):
         from st.utils.config import load_config
         from st.training.train_st import build_model
 
-        self.model_name = model_name
+        self.model_name = model_config.get("model_name", model_name)
         self.config = model_config
         self.target_sr = 16_000
+
+        self.mode = model_config.get("mode", "transcribe")
+        if self.mode not in ("transcribe", "translate"):
+            raise ValueError(
+                f"speech_aura mode must be 'transcribe' or 'translate', got '{self.mode}'"
+            )
 
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -83,10 +95,18 @@ class SpeechAuraModel(BaseSTTModel):
         gen_cfg = model_config.get("generation_config", {})
         self.max_new_tokens_asr = gen_cfg.get("max_new_tokens_asr", 128)
         self.max_new_tokens_cot = gen_cfg.get("max_new_tokens_cot", 256)
+        self.max_new_tokens_st  = gen_cfg.get("max_new_tokens_st", 256)
 
-        self._asr_languages = get_speech_aura_asr_languages()
-        self._ast_pairs = get_speech_aura_ast_pairs()
-        self._last_intermediate_transcripts: List[str] = []
+        # Capability sets depend on mode. Transcribe-only models advertise no
+        # AST pairs; translate-only models advertise no ASR languages. The
+        # benchmark's pre-flight validation will then skip the irrelevant
+        # half of any eval config gracefully.
+        if self.mode == "transcribe":
+            self._asr_languages = get_speech_aura_asr_languages()
+            self._ast_pairs: Set[Tuple[str, str]] = set()
+        else:  # translate
+            self._asr_languages: Set[str] = set()
+            self._ast_pairs = get_speech_aura_ast_pairs()
 
     # ------------------------------------------------------------------
     # Audio → mel (matches st/inference/generate.py exactly)
@@ -106,41 +126,54 @@ class SpeechAuraModel(BaseSTTModel):
         mel_len = torch.tensor([mel.size(1)], device=self.device)
         return mel, mel_len
 
-    def _generate(self, sample, src_fleurs: str, task: str) -> Dict[str, str]:
+    def _generate(self, sample, src_fleurs: str, task: str,
+                  tgt_fleurs: str = "en_us") -> str:
         """Run inference.
 
         Args:
             sample: AudioSample or ParallelAudioSample
             src_fleurs: FLEURS code of the source audio
-            task: 'asr' or 'cot'
+            task: 'asr' or 'st'
+            tgt_fleurs: FLEURS code of the target language (only used for 'st')
         """
         mel, mel_len = self._sample_to_mel(sample)
         src_aura = fleurs_to_aura(src_fleurs)
+        tgt_aura = fleurs_to_aura(tgt_fleurs) or "english"
+
+        if task == "asr":
+            max_new = self.max_new_tokens_asr
+        elif task == "st":
+            max_new = self.max_new_tokens_st
+        else:
+            max_new = self.max_new_tokens_cot
 
         with torch.inference_mode():
             output = self.st_model.generate(
                 audio_features=mel,
                 audio_lengths=mel_len,
                 src_lang=src_aura,
-                tgt_lang="english",   # only English target supported
+                tgt_lang=tgt_aura,
                 task=task,
-                max_new_tokens=(self.max_new_tokens_cot if task == "cot"
-                                else self.max_new_tokens_asr),
+                max_new_tokens=max_new,
             )
 
-        if task == "asr":
-            return {
-                "transcript": self.st_model._strip_special_tokens(output).strip(),
-                "translation": "",
-            }
-        transcript, translation = self.st_model.split_cot_output(output)
-        return {"transcript": transcript, "translation": translation}
+        # For both 'asr' and 'st', generate() returns the single output stream
+        # (transcript or translation, respectively) with special tokens still
+        # present so split_cot_output can work. We just strip them.
+        return self.st_model._strip_special_tokens(output).strip()
 
     # ------------------------------------------------------------------
-    # ASR
+    # ASR — only meaningful in 'transcribe' mode
     # ------------------------------------------------------------------
 
     def transcribe(self, samples: List[AudioSample], language: str) -> List[str]:
+        if self.mode != "transcribe":
+            print(
+                f"SpeechAura model '{self.model_name}' is in mode='{self.mode}' "
+                f"and does not support ASR"
+            )
+            return [""] * len(samples)
+
         if not speech_aura_supports_asr(language):
             print(f"SpeechAura does not support ASR for {language}")
             return [""] * len(samples)
@@ -148,38 +181,40 @@ class SpeechAuraModel(BaseSTTModel):
         results = []
         for sample in samples:
             try:
-                out = self._generate(sample, language, task="asr")
-                results.append(out["transcript"])
+                hyp = self._generate(sample, language, task="asr")
+                results.append(hyp)
             except Exception as e:
                 print(f"    SpeechAura ASR error for {sample.sample_id}: {e}")
                 results.append("")
         return results
 
     # ------------------------------------------------------------------
-    # AST (CoT)
+    # AST — only meaningful in 'translate' mode (uses direct ST task)
     # ------------------------------------------------------------------
 
     def translate(self, samples: List[ParallelAudioSample], source_lang: str,
                   target_lang: str) -> List[str]:
+        if self.mode != "translate":
+            print(
+                f"SpeechAura model '{self.model_name}' is in mode='{self.mode}' "
+                f"and does not support AST"
+            )
+            return [""] * len(samples)
+
         if not speech_aura_supports_ast(source_lang, target_lang):
             print(f"SpeechAura does not support AST {source_lang}→{target_lang}")
             return [""] * len(samples)
 
         translations = []
-        self._last_intermediate_transcripts = []
         for sample in samples:
             try:
-                out = self._generate(sample, source_lang, task="cot")
-                self._last_intermediate_transcripts.append(out["transcript"])
-                translations.append(out["translation"])
+                hyp = self._generate(sample, source_lang, task="st",
+                                     tgt_fleurs=target_lang)
+                translations.append(hyp)
             except Exception as e:
                 print(f"    SpeechAura AST error for {sample.sample_id}: {e}")
-                self._last_intermediate_transcripts.append("")
                 translations.append("")
         return translations
-
-    def get_last_intermediate_transcripts(self) -> List[str]:
-        return list(self._last_intermediate_transcripts)
 
     # ------------------------------------------------------------------
     # Metadata
@@ -189,8 +224,9 @@ class SpeechAuraModel(BaseSTTModel):
         return {
             "model_name": self.model_name,
             "model_type": "speech_aura",
+            "mode": self.mode,
             "device": self.device,
-            "tasks": "asr,ast",
+            "tasks": "asr" if self.mode == "transcribe" else "ast",
             "export_dir": str(self.config.get("export_dir", "")),
         }
 

@@ -14,33 +14,31 @@ from typing import Optional, Set, Tuple
 from stt_benchmark.config.language_support.fleurs import FLEURS_LANGUAGES
 
 # SeamlessM4T speech input languages (languages it can transcribe/translate FROM)
-# These are ISO 639-3 codes
 SEAMLESS_SPEECH_INPUT = {
     "afr", "amh", "arb", "ary", "arz", "asm", "ast", "azj", "bel", "ben",
     "bos", "bul", "cat", "ceb", "ces", "ckb", "cmn", "cmn_Hant", "cym",
     "dan", "deu", "ell", "eng", "est", "eus", "fin", "fra", "fuv", "gaz",
-    "gle", "glg", "guj", "heb", "hin", "hrv", "hun", "hye", "ibo", "ind",
-    "isl", "ita", "jav", "jpn", "kam", "kan", "kat", "kaz", "kea", "khk",
-    "khm", "kir", "kor", "lao", "lit", "ltz", "lug", "luo", "lvs", "mai",
-    "mal", "mar", "mkd", "mlt", "mni", "mya", "nld", "nno", "nob", "npi",
-    "nya", "oci", "ory", "pan", "pbt", "pes", "pol", "por", "ron", "rus",
-    "slk", "slv", "sna", "snd", "som", "spa", "srp", "swe", "swh", "tam",
-    "tel", "tgk", "tgl", "tha", "tur", "ukr", "urd", "uzn", "vie", "xho",
-    "yor", "yue", "zlm", "zul",
+    "gle", "glg", "guj", "hau", "heb", "hin", "hrv", "hun", "hye", "ibo",
+    "ind", "isl", "ita", "jav", "jpn", "kam", "kan", "kat", "kaz", "kea",
+    "khk", "khm", "kir", "kor", "lao", "lin", "lit", "ltz", "lug", "luo",
+    "lvs", "mai", "mal", "mar", "mkd", "mlt", "mni", "mya", "nld", "nno",
+    "nob", "npi", "nya", "oci", "ory", "pan", "pbt", "pes", "pol", "por",
+    "ron", "rus", "slk", "slv", "sna", "snd", "som", "spa", "srp", "swe",
+    "swh", "tam", "tel", "tgk", "tgl", "tha", "tur", "ukr", "urd", "uzn",
+    "vie", "xho", "yor", "yue", "zlm", "zul",
 }
 
-# SeamlessM4T text output languages (languages it can translate TO as text)
 SEAMLESS_TEXT_OUTPUT = {
     "afr", "amh", "arb", "ary", "arz", "asm", "azj", "bel", "ben", "bos",
     "bul", "cat", "ceb", "ces", "ckb", "cmn", "cmn_Hant", "cym", "dan",
     "deu", "ell", "eng", "est", "eus", "fin", "fra", "fuv", "gaz", "gle",
-    "glg", "guj", "heb", "hin", "hrv", "hun", "hye", "ibo", "ind", "isl",
-    "ita", "jav", "jpn", "kan", "kat", "kaz", "khk", "khm", "kir", "kor",
-    "lao", "lit", "lug", "luo", "lvs", "mai", "mal", "mar", "mkd", "mlt",
-    "mni", "mya", "nld", "nno", "nob", "npi", "nya", "ory", "pan", "pbt",
-    "pes", "pol", "por", "ron", "rus", "slk", "slv", "sna", "snd", "som",
-    "spa", "srp", "swe", "swh", "tam", "tel", "tgk", "tgl", "tha", "tur",
-    "ukr", "urd", "uzn", "vie", "yor", "yue", "zsm", "zul",
+    "glg", "guj", "hau", "heb", "hin", "hrv", "hun", "hye", "ibo", "ind",
+    "isl", "ita", "jav", "jpn", "kan", "kat", "kaz", "khk", "khm", "kir",
+    "kor", "lao", "lin", "lit", "lug", "luo", "lvs", "mai", "mal", "mar",
+    "mkd", "mlt", "mni", "mya", "nld", "nno", "nob", "npi", "nya", "ory",
+    "pan", "pbt", "pes", "pol", "por", "ron", "rus", "slk", "slv", "sna",
+    "snd", "som", "spa", "srp", "swe", "swh", "tam", "tel", "tgk", "tgl",
+    "tha", "tur", "ukr", "urd", "uzn", "vie", "yor", "yue", "zsm", "zul",
 }
 
 
@@ -80,14 +78,14 @@ def get_seamless_asr_languages() -> Set[str]:
 
 def get_seamless_ast_pairs(anchor_targets: Set[str] = None) -> Set[Tuple[str, str]]:
     """Get supported AST pairs.
-    
+
     Args:
         anchor_targets: If provided, only return pairs targeting these languages.
-                       Defaults to {'en_us', 'fr_fr'}.
+                       Defaults to all FLEURS languages that Seamless can output.
     """
     if anchor_targets is None:
-        anchor_targets = {"en_us", "fr_fr"}
-    
+        anchor_targets = set(FLEURS_LANGUAGES.keys())
+
     pairs = set()
     for src_fleurs in FLEURS_LANGUAGES:
         for tgt_fleurs in anchor_targets:

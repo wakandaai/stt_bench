@@ -112,21 +112,32 @@ mms_1b_fl102_nllb_3b_cascaded:
     num_beams: 1
     max_new_tokens: 384
 
+
 # ============================================================================
-# SpeechAura — loaded from an export directory produced by
+# SpeechAura — two separately trained models, one per task.
+# Both load from export directories produced by
 #   `python -m st.export.export_checkpoint speech_aura ...`
 # The export's config.yaml has all paths rewritten to point at sibling files
 # inside the export dir, so no other path configuration is needed here.
 # ============================================================================
-
-speech_aura:
+ 
+speech_aura_transcribe:
   model_type: "speech_aura"
-  model_name: "speech_aura"
-  export_dir: "/ocean/projects/cis250145p/gichamba/stt/iwslt2026/exports/SpeechAura_1B_V2"
-  tasks: ["asr", "ast"]
+  model_name: "speech_aura_transcribe"
+  mode: "transcribe"
+  export_dir: "/ocean/projects/cis250145p/gichamba/stt/iwslt2026/exports/speech_aura_transcribe"
+  tasks: ["asr"]
   generation_config:
     max_new_tokens_asr: 128
-    max_new_tokens_cot: 256
+ 
+speech_aura_translate:
+  model_type: "speech_aura"
+  model_name: "speech_aura_translate"
+  mode: "translate"
+  export_dir: "/ocean/projects/cis250145p/gichamba/stt/iwslt2026/exports/speech_aura_translate"
+  tasks: ["ast"]
+  generation_config:
+    max_new_tokens_st: 256
 
 # ============================================================================
 # CTC encoder (pretrained Conformer + CTC, no LLM). ASR-only, greedy decoding.
