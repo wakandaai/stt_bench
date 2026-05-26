@@ -89,6 +89,8 @@ def build_summaries(metric_files: List[Path]):
                 "target_lang": data.get("target_lang", ""),
                 "bleu": data.get("bleu"),
                 "chrf": data.get("chrf"),
+                "spbleu": data.get("spbleu"),
+                "ssa_comet": data.get("ssa_comet"),
                 "num_samples": data.get("num_samples"),
                 "total_time": data.get("total_time"),
                 "avg_time_per_sample": data.get("avg_time_per_sample"),
@@ -158,23 +160,67 @@ def print_ast_table(rows: List[Dict[str, Any]]):
             r for r in rows
             if r["model_name"] == model and r["dataset"] == dataset
         ]
-        print(f"\n{'─'*60}")
+        # Only print spBLEU / SSA-COMET columns if at least one row has them.
+        any_spbleu = any(r["spbleu"] is not None for r in group_rows)
+        any_comet  = any(r["ssa_comet"] is not None for r in group_rows)
+
+        print(f"\n{'─'*72}")
         print(f"  Model: {model}   Dataset: {dataset}")
-        print(f"{'─'*60}")
-        print(f"  {'Pair':<20} {'BLEU':>8} {'chrF++':>8} {'Samples':>8} {'Time(s)':>9}")
-        print(f"  {'─'*20} {'─'*8} {'─'*8} {'─'*8} {'─'*9}")
+        print(f"{'─'*72}")
+        header = f"  {'Pair':<20} {'BLEU':>8} {'chrF++':>8}"
+        if any_spbleu:
+            header += f" {'spBLEU':>8}"
+        if any_comet:
+            header += f" {'COMET':>8}"
+        header += f" {'Samples':>8} {'Time(s)':>9}"
+        print(header)
+
+        sep = f"  {'─'*20} {'─'*8} {'─'*8}"
+        if any_spbleu:
+            sep += f" {'─'*8}"
+        if any_comet:
+            sep += f" {'─'*8}"
+        sep += f" {'─'*8} {'─'*9}"
+        print(sep)
+
         for r in sorted(group_rows, key=lambda x: (x["source_lang"], x["target_lang"])):
             pair = f"{r['source_lang']}→{r['target_lang']}"
             bleu = f"{r['bleu']:.2f}" if r["bleu"] is not None else "N/A"
             chrf = f"{r['chrf']:.2f}" if r["chrf"] is not None else "N/A"
             n = r["num_samples"] or ""
             t = f"{r['total_time']:.1f}" if r["total_time"] is not None else "N/A"
-            print(f"  {pair:<20} {bleu:>8} {chrf:>8} {str(n):>8} {t:>9}")
+            line = f"  {pair:<20} {bleu:>8} {chrf:>8}"
+            if any_spbleu:
+                sp = f"{r['spbleu']:.2f}" if r["spbleu"] is not None else "N/A"
+                line += f" {sp:>8}"
+            if any_comet:
+                cm = f"{r['ssa_comet']:.4f}" if r["ssa_comet"] is not None else "N/A"
+                line += f" {cm:>8}"
+            line += f" {str(n):>8} {t:>9}"
+            print(line)
+
         bleus = [r["bleu"] for r in group_rows if r["bleu"] is not None]
         chrfs = [r["chrf"] for r in group_rows if r["chrf"] is not None]
         if bleus:
-            print(f"  {'─'*20} {'─'*8} {'─'*8}")
-            print(f"  {'Average':<20} {sum(bleus)/len(bleus):>8.2f} {sum(chrfs)/len(chrfs):>8.2f}")
+            print(sep)
+            avg_line = (
+                f"  {'Average':<20} "
+                f"{sum(bleus)/len(bleus):>8.2f} "
+                f"{sum(chrfs)/len(chrfs):>8.2f}"
+            )
+            if any_spbleu:
+                sp_vals = [r["spbleu"] for r in group_rows if r["spbleu"] is not None]
+                avg_line += (
+                    f" {sum(sp_vals)/len(sp_vals):>8.2f}" if sp_vals
+                    else f" {'N/A':>8}"
+                )
+            if any_comet:
+                cm_vals = [r["ssa_comet"] for r in group_rows if r["ssa_comet"] is not None]
+                avg_line += (
+                    f" {sum(cm_vals)/len(cm_vals):>8.4f}" if cm_vals
+                    else f" {'N/A':>8}"
+                )
+            print(avg_line)
 
 
 def main():

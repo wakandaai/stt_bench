@@ -8,6 +8,7 @@ Pipeline: MMS (ASR) → NLLB (MT)
   2. NLLB translates the transcript to the target language
 """
 
+import re
 import torch
 from typing import List, Dict, Set, Any, Tuple, Optional
 from transformers import AutoTokenizer, M2M100ForConditionalGeneration
@@ -25,6 +26,14 @@ from stt_benchmark.config.language_support.nllb import (
     nllb_supports_pair,
     get_nllb_supported_languages,
 )
+
+
+# Matches one or more whitespace chars before any of . , ! ? ; :
+# NLLB-200 can leak Moses-style spacing (' .', ' ,', ' ?') on some target
+# languages. sacrebleu warns about this and BLEU/chrF/spBLEU all suffer
+# when references are clean and hypotheses aren't. Fix at the source so
+# saved predictions on disk are already clean.
+_PRE_PUNCT_WS = re.compile(r"\s+([.,!?;:])")
 
 
 def _parallel_to_asr_sample(p: ParallelAudioSample) -> AudioSample:
@@ -133,7 +142,9 @@ class CascadedMmsNllbModel(BaseSTTModel):
             generated_ids, skip_special_tokens=True
         )
 
-        return [t.strip() for t in translations]
+        # Detokenize pre-punctuation whitespace artifacts NLLB occasionally
+        # produces, then strip leading/trailing whitespace.
+        return [_PRE_PUNCT_WS.sub(r"\1", t).strip() for t in translations]
 
     # ------------------------------------------------------------------
     # ASR interface (delegates to MMS)

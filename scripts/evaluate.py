@@ -7,6 +7,7 @@ Evaluate speech models against one or more datasets declared in an eval config.
 Usage:
   python scripts/evaluate.py whisper_large_v3 --eval-config configs/african_evaluation.yaml
   python scripts/evaluate.py seamless_m4t_v2_large --eval-config configs/african_evaluation.yaml --batch-size 4
+  python scripts/evaluate.py seamless_m4t_v2_large --eval-config configs/african_evaluation.yaml --ssa-comet
 """
 
 import argparse
@@ -213,10 +214,15 @@ def evaluate_one_dataset(
                     dataset_name=spec.dataset_name,
                 )
                 if result:
-                    print(
+                    msg = (
                         f"  {src}→{tgt}: BLEU={result.metrics.bleu:.2f}, "
                         f"chrF++={result.metrics.chrf:.2f}"
                     )
+                    if result.metrics.spbleu is not None:
+                        msg += f", spBLEU-1K={result.metrics.spbleu:.2f}"
+                    if result.metrics.ssa_comet is not None:
+                        msg += f", SSA-COMET={result.metrics.ssa_comet:.4f}"
+                    print(msg)
             except Exception as e:
                 print(f"  Error on {src}→{tgt}: {e}")
                 continue
@@ -245,6 +251,19 @@ Example:
     parser.add_argument("--batch-size", type=int, default=1, help="Batch size (default: 1)")
     parser.add_argument("--output-dir", default="results", help="Output directory")
     parser.add_argument("--experiment-name", help="Override experiment name")
+    parser.add_argument(
+        "--no-spbleu", action="store_true",
+        help="Skip the spBLEU-1K AST metric (otherwise computed by default).",
+    )
+    parser.add_argument(
+        "--ssa-comet", action="store_true",
+        help="Also compute SSA-COMET-MTL for AST. Loads "
+             "McGill-NLP/ssa-comet-mtl on first AST scoring call (GPU recommended).",
+    )
+    parser.add_argument(
+        "--ssa-comet-batch-size", type=int, default=8,
+        help="Batch size for SSA-COMET scoring (default: 8).",
+    )
 
     args = parser.parse_args()
 
@@ -268,9 +287,17 @@ Example:
         evaluator = EvaluationPipeline(
             output_dir=args.output_dir,
             batch_size=args.batch_size,
-            bleu_config={"lowercase": False},
+            # AST scoring is case-insensitive: our MMS-based ASR and CTC
+            # encoders only emit lowercase, while NLLB/Whisper/SeamlessM4T
+            # produce cased output. Lowercasing both sides at scoring time
+            # avoids penalizing the cased models for capitalization mismatches
+            # against the lowercase FLEURS-style references.
+            bleu_config={"lowercase": True},
             chrf_config={"word_order": 2},
             skip_unsupported=False,
+            compute_spbleu=not args.no_spbleu,
+            compute_ssa_comet=args.ssa_comet,
+            ssa_comet_batch_size=args.ssa_comet_batch_size,
         )
 
         for spec in eval_cfg.datasets:

@@ -15,7 +15,9 @@ from stt_benchmark.evaluation.base import (
     ASRPrediction, ASTPrediction,
     ASREvaluationResult, ASTEvaluationResult,
 )
-from stt_benchmark.evaluation.metrics import ASRMetricsCalculator, ASTMetricsCalculator
+from stt_benchmark.evaluation.metrics import (
+    ASRMetricsCalculator, ASTMetricsCalculator, SsaCometScorer,
+)
 from stt_benchmark.utils.text_normalize import TextNormalizer
 
 
@@ -35,13 +37,23 @@ class EvaluationPipeline:
         bleu_config: Dict[str, Any] = None,
         chrf_config: Dict[str, Any] = None,
         skip_unsupported: bool = True,
+        compute_spbleu: bool = True,
+        compute_ssa_comet: bool = False,
+        ssa_comet_batch_size: int = 8,
     ):
         self.output_dir = Path(output_dir)
         self.batch_size = batch_size
         self.skip_unsupported = skip_unsupported
 
         self.asr_metrics = ASRMetricsCalculator(normalizer)
-        self.ast_metrics = ASTMetricsCalculator(bleu_config, chrf_config)
+        self.ast_metrics = ASTMetricsCalculator(
+            bleu_config, chrf_config, compute_spbleu=compute_spbleu,
+        )
+        self.compute_ssa_comet = compute_ssa_comet
+        self._ssa_comet_scorer: Optional[SsaCometScorer] = (
+            SsaCometScorer(batch_size=ssa_comet_batch_size)
+            if compute_ssa_comet else None
+        )
 
     # ====================================================================
     # ASR Evaluation
@@ -167,6 +179,18 @@ class EvaluationPipeline:
         references = [p.reference for p in predictions]
         metrics = self.ast_metrics.calculate(hypotheses, references)
 
+        # SSA-COMET — system-level reference-based score. Opt-in via the
+        # pipeline flag; computed after BLEU/chrF so a failure here doesn't
+        # block the cheap metrics from being saved.
+        if self._ssa_comet_scorer is not None:
+            sources = [p.source_transcription for p in predictions]
+            score = self._ssa_comet_scorer.score(sources, hypotheses, references)
+            metrics.ssa_comet = score
+            if score is not None:
+                metrics.metric_config["ssa_comet_model"] = (
+                    self._ssa_comet_scorer.model_name
+                )
+
         result = ASTEvaluationResult(
             source_lang=source_lang,
             target_lang=target_lang,
@@ -178,7 +202,12 @@ class EvaluationPipeline:
         )
 
         self._save_ast_result(result, dataset_name)
-        print(f"  BLEU: {metrics.bleu:.2f}, chrF++: {metrics.chrf:.2f}")
+        msg = f"  BLEU: {metrics.bleu:.2f}, chrF++: {metrics.chrf:.2f}"
+        if metrics.spbleu is not None:
+            msg += f", spBLEU-1K: {metrics.spbleu:.2f}"
+        if metrics.ssa_comet is not None:
+            msg += f", SSA-COMET: {metrics.ssa_comet:.4f}"
+        print(msg)
         return result
 
     def _run_ast_inference(
@@ -328,6 +357,8 @@ class EvaluationPipeline:
             "target_lang": result.target_lang,
             "bleu": result.metrics.bleu,
             "chrf": result.metrics.chrf,
+            "spbleu": result.metrics.spbleu,
+            "ssa_comet": result.metrics.ssa_comet,
             "num_samples": result.metrics.num_samples,
             "total_time": result.total_time,
             "avg_time_per_sample": (

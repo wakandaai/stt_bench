@@ -16,6 +16,7 @@ from stt_benchmark.datasets.mbaza_fleurs_rw import MbazaFleursRwDataset
 from stt_benchmark.datasets.bembaspeech import BembaSpeechDataset
 from stt_benchmark.datasets.bigc import BigCDataset
 from stt_benchmark.datasets.nchlt import NchltDataset
+from stt_benchmark.datasets.waxal import WaxalDataset
 
 
 # Map config name -> dataset class.
@@ -25,6 +26,7 @@ DATASET_REGISTRY: Dict[str, Type] = {
     "bembaspeech": BembaSpeechDataset,
     "bigc": BigCDataset,
     "nchlt": NchltDataset,
+    "waxal": WaxalDataset,
 }
 
 

@@ -79,6 +79,11 @@ FLEURS_LANGUAGES = {
     "lt_lt": {"name": "Lithuanian", "iso639_3": "lit", "iso639_1": "lt", "script": "Latn"},
     "luo_ke": {"name": "Luo", "iso639_3": "luo", "iso639_1": None, "script": "Latn"},
     "lv_lv": {"name": "Latvian", "iso639_3": "lvs", "iso639_1": "lv", "script": "Latn"},
+    # Malagasy — NOT in official Google FLEURS. Listed here so the waxal dataset
+    # (mlg_asr) can use a first-class language code. iso639_3 'plt' (Plateau
+    # Malagasy) is the FLORES/NLLB code; Waxal uses macrolanguage 'mlg' but
+    # the same standard written variety.
+    "mg_mg": {"name": "Malagasy", "iso639_3": "plt", "iso639_1": "mg", "script": "Latn"},
     "mi_nz": {"name": "Maori", "iso639_3": "mri", "iso639_1": "mi", "script": "Latn"},
     "mk_mk": {"name": "Macedonian", "iso639_3": "mkd", "iso639_1": "mk", "script": "Cyrl"},
     "ml_in": {"name": "Malayalam", "iso639_3": "mal", "iso639_1": "ml", "script": "Mlym"},
@@ -121,6 +126,11 @@ FLEURS_LANGUAGES = {
     "te_in": {"name": "Telugu", "iso639_3": "tel", "iso639_1": "te", "script": "Telu"},
     "tg_tj": {"name": "Tajik", "iso639_3": "tgk", "iso639_1": "tg", "script": "Cyrl"},
     "th_th": {"name": "Thai", "iso639_3": "tha", "iso639_1": "th", "script": "Thai"},
+    # Tigrinya — NOT in official Google FLEURS. Listed here so the waxal
+    # dataset (tir_asr) can use a first-class language code. Tagged as ti_et
+    # (Ethiopia) since that matches our training data; Tigrinya is also
+    # spoken in Eritrea (ti_er) but Waxal does not specify a region.
+    "ti_et": {"name": "Tigrinya", "iso639_3": "tir", "iso639_1": "ti", "script": "Ethi"},
     # Tswana / Setswana — NOT in official Google FLEURS. Listed here so the
     # nchlt dataset can use a first-class language code.
     "tn_za": {"name": "Tswana", "iso639_3": "tsn", "iso639_1": "tn", "script": "Latn"},
@@ -135,14 +145,13 @@ FLEURS_LANGUAGES = {
     "yo_ng": {"name": "Yoruba", "iso639_3": "yor", "iso639_1": "yo", "script": "Latn"},
     "yue_hant_hk": {"name": "Cantonese", "iso639_3": "yue", "iso639_1": None, "script": "Hant"},
     "zu_za": {"name": "Zulu", "iso639_3": "zul", "iso639_1": "zu", "script": "Latn"},
-    "mg_mg": {"name": "Malagasy", "iso639_3": "plt", "iso639_1": "mg", "script": "Latn"},
 }
 
 # Languages of interest for African-focused benchmarking
 AFRICAN_LANGUAGES = {
     "af_za", "am_et", "ar_eg", "bem", "ff_sn", "ha_ng", "ig_ng", "kam_ke",
     "lg_ug", "ln_cd", "luo_ke", "mg_mg", "nso_za", "ny_mw", "om_et",
-    "rw_rw", "sn_zw", "so_so", "st_za", "sw_ke", "tn_za", "umb_ao",
+    "rw_rw", "sn_zw", "so_so", "st_za", "sw_ke", "ti_et", "tn_za", "umb_ao",
     "wo_sn", "xh_za", "yo_ng", "zu_za",
 }
 
@@ -157,7 +166,7 @@ TARGET_LANGUAGES = {
     "so_so",    # Somali
     "ha_ng",    # Hausa
     "am_et",    # Amharic
-    "mg_mg",    # Plateau Malagasy
+    "mg_mg",    # Malagasy (via waxal, not official FLEURS)
     "rw_rw",    # Kinyarwanda (via mbaza_fleurs_rw, not official FLEURS)
     "xh_za",    # Xhosa
     "zu_za",    # Zulu
@@ -166,7 +175,7 @@ TARGET_LANGUAGES = {
     "sn_zw",    # Shona
     "ig_ng",    # Igbo
     "yo_ng",    # Yoruba
-    # "ti_et",  # Tigrinya — NOT in FLEURS
+    "ti_et",    # Tigrinya (via waxal, not official FLEURS)
     "lg_ug",    # Luganda
     "ln_cd",    # Lingala
     "tn_za",    # Tswana (via NCHLT, not official FLEURS)

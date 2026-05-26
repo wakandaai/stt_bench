@@ -21,9 +21,7 @@ from stt_benchmark.config.language_support.fleurs import FLEURS_LANGUAGES
 
 # Special mappings where MMS code differs from FLEURS iso639_3
 MMS_CODE_OVERRIDES = {
-    # MMS uses 'swh' for Swahili (same as FLEURS iso639_3)
-    # MMS uses 'arb' for Arabic (same as FLEURS iso639_3)
-    # Most are direct iso639_3 matches
+    "plt": "mlg",   # FLEURS uses iso639_3 'plt' (Plateau Malagasy); MMS uses 'mlg' (macrolanguage)
 }
 
 

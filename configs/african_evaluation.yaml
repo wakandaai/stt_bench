@@ -9,38 +9,38 @@ experiment_name: african_eval
 
 datasets:
 
-  fleurs:
-    split: test
-    # asr:
-    #   languages:
-    #     - am_et    # Amharic
-    #     - ha_ng    # Hausa
-    #     - ig_ng    # Igbo
-    #     - lg_ug    # Luganda
-    #     - ln_cd    # Lingala
-    #     - sn_zw    # Shona
-    #     - sw_ke    # Swahili
-    #     - xh_za    # Xhosa
-    #     - yo_ng    # Yoruba
-    #     - zu_za    # Zulu
-    #     - en_us    # English
-    #     - ar_eg    # Arabic
-    #     - fr_fr    # French
-    #     - pt_br    # Portuguese
-    ast:
-      sources: [am_et, ha_ng, ig_ng, lg_ug, ln_cd, sn_zw, sw_ke, xh_za, yo_ng, zu_za, en_us, ar_eg, fr_fr, pt_br]
-      anchors: [en_us]
-      direction: both
+  # fleurs:
+  #   split: test
+  #   asr:
+  #     languages:
+  #       - am_et    # Amharic
+  #       - ha_ng    # Hausa
+  #       - ig_ng    # Igbo
+  #       - lg_ug    # Luganda
+  #       - ln_cd    # Lingala
+  #       - sn_zw    # Shona
+  #       - sw_ke    # Swahili
+  #       - xh_za    # Xhosa
+  #       - yo_ng    # Yoruba
+  #       - zu_za    # Zulu
+  #       - en_us    # English
+  #       - ar_eg    # Arabic
+  #       - fr_fr    # French
+  #       - pt_br    # Portuguese
+  #   ast:
+  #     sources: [am_et, ha_ng, ig_ng, lg_ug, ln_cd, sn_zw, sw_ke, xh_za, yo_ng, zu_za, en_us, ar_eg, fr_fr, pt_br]
+  #     anchors: [en_us]
+  #     direction: both
 
-  mbaza_fleurs_rw:
-    local_path: /ocean/projects/cis250145p/shared/datasets/mbazaNLP_fleurs-kinyarwanda
-    split: test
-    asr:
-      languages: [rw_rw]
-    ast:
-      sources: [rw_rw]
-      anchors: [en_us]
-      direction: both
+  # mbaza_fleurs_rw:
+  #   local_path: /ocean/projects/cis250145p/shared/datasets/mbazaNLP_fleurs-kinyarwanda
+  #   split: test
+  #   asr:
+  #     languages: [rw_rw]
+  #   ast:
+  #     sources: [rw_rw]
+  #     anchors: [en_us]
+  #     direction: both
 
   # bembaspeech:
   #   local_path: /ocean/projects/cis250145p/shared/datasets/bemba_speech/BembaSpeech/bem
@@ -48,21 +48,33 @@ datasets:
   #   asr:
   #     languages: [bem]
 
-  bigc:
-    local_path: /ocean/projects/cis250145p/shared/datasets/bigc/data/bem
-    split: test
-    asr:
-      languages: [bem]
-    ast:
-      pairs:
-        - [bem, en_us]
-
-  # nchlt:
-  #   local_path: /ocean/projects/cis250145p/shared/datasets/NCHLT
+  # bigc:
+  #   local_path: /ocean/projects/cis250145p/shared/datasets/bigc/data/bem
   #   split: test
   #   asr:
-  #     languages:
-  #       - st_za
-  #       - tn_za
-  #       - xh_za
-  #       - zu_za
+  #     languages: [bem]
+  #   ast:
+  #     pairs:
+  #       - [bem, en_us]
+
+  nchlt:
+    local_path: /ocean/projects/cis250145p/shared/datasets/NCHLT
+    split: test
+    asr:
+      languages:
+        - st_za
+        - tn_za
+        - xh_za
+        - zu_za
+
+  # Waxal (google/WaxalNLP) — HuggingFace-backed, ASR-only.
+  waxal:
+    split: test
+    asr:
+      languages:
+        - am_et
+        - ln_cd
+        - lg_ug
+        - mg_mg    # Malagasy
+        - sn_zw 
+        - ti_et    # Tigrinya

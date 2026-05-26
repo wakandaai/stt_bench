@@ -45,6 +45,8 @@ class ASTMetrics:
     chrf: float
     num_samples: int
     metric_config: Dict[str, Any]
+    spbleu: Optional[float] = None       # spBLEU-1K (sacrebleu --tokenize spBLEU-1K)
+    ssa_comet: Optional[float] = None    # SSA-COMET-MTL system-level score
 
 
 @dataclass
