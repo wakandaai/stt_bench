@@ -24,6 +24,10 @@ class ModelFactory:
         "seamless": SeamlessModel,
         "cascaded": CascadedMmsNllbModel,
         "speech_aura": SpeechAuraModel,
+        # Same adapter: st.training.train_st.build_model dispatches on whether the
+        # export's config.yaml carries an `aura:` or an `nllb:` block, and both
+        # models honour the same generate() contract.
+        "speech_nllb": SpeechAuraModel,
         "ctc_encoder": CTCEncoderModel,
         "omni_asr": OmniAsrModel,
     }

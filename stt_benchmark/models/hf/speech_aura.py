@@ -39,7 +39,7 @@ class SpeechAuraModel(BaseSTTModel):
 
     def __init__(self, model_name: str, model_config: Dict[str, Any]):
         # Lazy import — only loaded when this model is actually instantiated.
-        from st.utils.config import load_config
+        from core.utils.config import load_config
         from st.training.train_st import build_model
 
         self.model_name = model_config.get("model_name", model_name)
@@ -223,7 +223,9 @@ class SpeechAuraModel(BaseSTTModel):
     def get_model_info(self) -> Dict[str, str]:
         return {
             "model_name": self.model_name,
-            "model_type": "speech_aura",
+            # Report what was configured rather than a hardcoded name — this
+            # class also backs the speech_nllb models (see the module docstring).
+            "model_type": self.config.get("model_type", "speech_aura"),
             "mode": self.mode,
             "device": self.device,
             "tasks": "asr" if self.mode == "transcribe" else "ast",

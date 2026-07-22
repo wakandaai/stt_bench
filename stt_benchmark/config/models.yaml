@@ -116,7 +116,7 @@ mms_1b_fl102_nllb_3b_cascaded:
 # ============================================================================
 # SpeechAura — two separately trained models, one per task.
 # Both load from export directories produced by
-#   `python -m st.export.export_checkpoint speech_aura ...`
+#   `python scripts/export_checkpoint.py speech_aura ...`
 # The export's config.yaml has all paths rewritten to point at sibling files
 # inside the export dir, so no other path configuration is needed here.
 # ============================================================================
@@ -125,7 +125,7 @@ speech_aura_transcribe:
   model_type: "speech_aura"
   model_name: "speech_aura_transcribe"
   mode: "transcribe"
-  export_dir: "/ocean/projects/cis250145p/gichamba/stt/iwslt2026/exports/speech_aura_transcribe"
+  export_dir: "/ocean/projects/cis250145p/gichamba/stt/speechaura/exports/speech_aura_transcribe"
   tasks: ["asr"]
   generation_config:
     max_new_tokens_asr: 128
@@ -134,7 +134,41 @@ speech_aura_translate:
   model_type: "speech_aura"
   model_name: "speech_aura_translate"
   mode: "translate"
-  export_dir: "/ocean/projects/cis250145p/gichamba/stt/iwslt2026/exports/speech_aura_translate"
+  export_dir: "/ocean/projects/cis250145p/gichamba/stt/speechaura/exports/speech_aura_translate"
+  tasks: ["ast"]
+  generation_config:
+    max_new_tokens_st: 256
+
+# ============================================================================
+# SpeechNLLB — same speech frontend (Conformer + CTC compressor + projector),
+# but an NLLB-200 encoder-decoder in place of Aura-1B. Translation-only: NLLB
+# emits no transcript, so there is no 'transcribe' counterpart.
+# Exported with:
+#   python scripts/export_checkpoint.py speech_nllb \
+#       --config configs/stt/experiment/stage4_st_nllb.yaml \
+#       --checkpoint runs/stage4_nllb_st_v2/checkpoint_step30000 \
+#       --output exports/speech_nllb_st_v2
+# Reuses the speech_aura adapter — build_model dispatches on the config's
+# `nllb:` block.
+# ============================================================================
+
+speech_nllb_st_v2:
+  model_type: "speech_nllb"
+  model_name: "speech_nllb_st_v2"
+  mode: "translate"
+  export_dir: "/ocean/projects/cis250145p/gichamba/stt/speechaura/exports/speech_nllb_st_v2"
+  tasks: ["ast"]
+  generation_config:
+    max_new_tokens_st: 256
+
+# Same stage4_nllb_st_v2 run, checkpoint_step27500 — distilled-1.3B base,
+# nllb_trainable: all. Distinct model_name so results don't collide with the
+# v2 (step30000) entry above.
+speech_nllb:
+  model_type: "speech_nllb"
+  model_name: "speech_nllb"
+  mode: "translate"
+  export_dir: "/ocean/projects/cis250145p/gichamba/stt/speechaura/exports/speech_nllb"
   tasks: ["ast"]
   generation_config:
     max_new_tokens_st: 256
@@ -148,7 +182,7 @@ speech_aura_translate:
 ctc_encoder:
   model_type: "ctc_encoder"
   model_name: "ctc_encoder"
-  export_dir: "/ocean/projects/cis250145p/gichamba/stt/iwslt2026/exports/conformer_encoder_20lang"
+  export_dir: "/ocean/projects/cis250145p/gichamba/stt/speechaura/exports/conformer_encoder_20lang"
   tasks: ["asr"]
 
 
