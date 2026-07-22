@@ -137,6 +137,12 @@ class SsaCometScorer:
                 gpus = 0
         self.gpus = gpus
         self._model = None
+        # Cache the most recent prediction so that callers asking for both the
+        # system score and the per-segment scores on the same inputs (e.g. the
+        # recompute tool computing a corpus number and CSV columns) only pay
+        # for one COMET forward pass.
+        self._cache_key = None
+        self._cache_output = None
 
     def _load(self):
         if self._model is not None:
@@ -146,17 +152,18 @@ class SsaCometScorer:
         model_path = download_model(self.model_name)
         self._model = load_from_checkpoint(model_path)
 
-    def score(
+    def _predict(
         self,
         sources: List[str],
         hypotheses: List[str],
         references: List[str],
-    ) -> Optional[float]:
-        """Return system-level SSA-COMET score, or None on failure.
+    ):
+        """Run COMET and return its PredictionOutput, or None on failure.
 
         All three lists must be the same length. Empty hypotheses are scored
         as-is (COMET handles them); we do not filter, to keep counts aligned
-        with the rest of the AST metrics on this run.
+        with the rest of the AST metrics on this run. Results are cached on the
+        exact input triple so a follow-up call with identical inputs is free.
         """
         if not (len(sources) == len(hypotheses) == len(references)):
             raise ValueError(
@@ -165,6 +172,10 @@ class SsaCometScorer:
             )
         if not hypotheses:
             return None
+
+        key = (tuple(sources), tuple(hypotheses), tuple(references))
+        if key == self._cache_key:
+            return self._cache_output
 
         try:
             self._load()
@@ -184,6 +195,21 @@ class SsaCometScorer:
             print(f"  ⚠️  SSA-COMET prediction failed: {e}")
             return None
 
+        self._cache_key = key
+        self._cache_output = output
+        return output
+
+    def score(
+        self,
+        sources: List[str],
+        hypotheses: List[str],
+        references: List[str],
+    ) -> Optional[float]:
+        """Return system-level SSA-COMET score, or None on failure."""
+        output = self._predict(sources, hypotheses, references)
+        if output is None:
+            return None
+
         # comet's PredictionOutput exposes .system_score (a float in [0, 1]).
         # Fall back to averaging .scores if for some reason that attribute is
         # missing in this comet version.
@@ -194,3 +220,22 @@ class SsaCometScorer:
                 return None
             sys_score = sum(scores) / len(scores)
         return float(sys_score)
+
+    def score_segments(
+        self,
+        sources: List[str],
+        hypotheses: List[str],
+        references: List[str],
+    ) -> Optional[List[float]]:
+        """Return per-segment SSA-COMET scores (one float per input), or None.
+
+        Order matches the inputs. Useful for writing a per-instance column
+        alongside predictions.
+        """
+        output = self._predict(sources, hypotheses, references)
+        if output is None:
+            return None
+        scores = getattr(output, "scores", None)
+        if scores is None:
+            return None
+        return [float(s) for s in scores]
