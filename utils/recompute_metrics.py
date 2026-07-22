@@ -40,6 +40,8 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 
+from jiwer import wer as jiwer_wer, cer as jiwer_cer
+
 from stt_benchmark.evaluation.metrics import (
     ASRMetricsCalculator, ASTMetricsCalculator, SsaCometScorer,
 )
@@ -78,6 +80,15 @@ def _read_ast_csv(path: Path) -> Tuple[List[str], List[str], List[str]]:
             hyps.append(row.get("hypothesis", ""))
             refs.append(row.get("reference", ""))
     return srcs, hyps, refs
+
+
+def _read_csv_rows(path: Path) -> Tuple[List[str], List[Dict[str, str]]]:
+    """Return (fieldnames, rows) preserving column order and every row."""
+    with open(path, "r", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        fieldnames = list(reader.fieldnames or [])
+        rows = [dict(r) for r in reader]
+    return fieldnames, rows
 
 
 # =========================================================================
@@ -299,6 +310,124 @@ def _recompute_ast(
 
 
 # =========================================================================
+# Per-instance scoring (CSV columns)
+# =========================================================================
+
+# Which metrics can be reported per row, and what we name the column.
+PER_INSTANCE_ASR = {"wer", "cer"}
+PER_INSTANCE_AST = {"ssa_comet", "chrf", "bleu", "spbleu"}
+
+
+def _per_instance_asr(
+    rows: List[Dict[str, str]],
+    metrics_to_compute: set,
+    rc: "MetricRecomputer",
+) -> Dict[str, List[Any]]:
+    """Per-row WER/CER aligned to `rows`. Empty-reference rows get ''."""
+    wanted = metrics_to_compute & PER_INSTANCE_ASR
+    if not wanted:
+        return {}
+    normalizer = rc.asr_calc().normalizer
+    cols: Dict[str, List[Any]] = {m: [] for m in wanted}
+    for row in rows:
+        h = normalizer.normalize(row.get("hypothesis", ""))
+        r = normalizer.normalize(row.get("reference", ""))
+        if not r.strip():
+            for m in wanted:
+                cols[m].append("")
+            continue
+        if "wer" in wanted:
+            cols["wer"].append(round(jiwer_wer(r, h) * 100, 4))
+        if "cer" in wanted:
+            cols["cer"].append(round(jiwer_cer(r, h) * 100, 4))
+    return cols
+
+
+def _per_instance_ast(
+    rows: List[Dict[str, str]],
+    metrics_to_compute: set,
+    rc: "MetricRecomputer",
+) -> Dict[str, List[Any]]:
+    """Per-row AST metrics aligned to `rows`.
+
+    SSA-COMET is genuinely per-segment. chrF/BLEU/spBLEU are sentence-level
+    sacrebleu scores (BLEU/spBLEU are noisy on single sentences — included for
+    completeness but read them with that caveat).
+    """
+    wanted = metrics_to_compute & PER_INSTANCE_AST
+    if not wanted:
+        return {}
+
+    srcs = [row.get("source_transcription", "") for row in rows]
+    hyps = [row.get("hypothesis", "") for row in rows]
+    refs = [row.get("reference", "") for row in rows]
+    cols: Dict[str, List[Any]] = {}
+
+    if "ssa_comet" in wanted:
+        seg = rc.comet().score_segments(srcs, hyps, refs)
+        if seg is not None and len(seg) == len(rows):
+            cols["ssa_comet"] = [round(s, 6) for s in seg]
+        else:
+            print("  ⚠️  SSA-COMET per-segment scores unavailable; skipping column")
+
+    sacre = wanted & {"chrf", "bleu", "spbleu"}
+    if sacre:
+        want_spbleu = "spbleu" in sacre
+        calc = rc.ast_calc(with_spbleu=want_spbleu)
+        if "chrf" in sacre:
+            cols["chrf"] = [
+                round(calc.chrf_metric.sentence_score(h, [r]).score, 4)
+                for h, r in zip(hyps, refs)
+            ]
+        if "bleu" in sacre:
+            cols["bleu"] = [
+                round(calc.bleu_metric.sentence_score(h, [r]).score, 4)
+                for h, r in zip(hyps, refs)
+            ]
+        if "spbleu" in sacre and calc.spbleu_metric is not None:
+            cols["spbleu"] = [
+                round(calc.spbleu_metric.sentence_score(h, [r]).score, 4)
+                for h, r in zip(hyps, refs)
+            ]
+
+    return cols
+
+
+def _apply_per_instance(
+    pred_csv: Path,
+    fieldnames: List[str],
+    rows: List[Dict[str, str]],
+    new_cols: Dict[str, List[Any]],
+    dry_run: bool,
+) -> List[str]:
+    """Add/overwrite `new_cols` as columns in pred_csv. Returns columns written.
+
+    Re-running updates the values of an existing column in place rather than
+    duplicating it.
+    """
+    if not new_cols:
+        return []
+    fieldnames = list(fieldnames)
+    written: List[str] = []
+    for name, vals in new_cols.items():
+        if len(vals) != len(rows):
+            print(f"  ⚠️  {name}: {len(vals)} values vs {len(rows)} rows; skipping column")
+            continue
+        if name not in fieldnames:
+            fieldnames.append(name)
+        for row, v in zip(rows, vals):
+            row[name] = v
+        written.append(name)
+
+    if written and not dry_run:
+        with open(pred_csv, "w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+    return written
+
+
+# =========================================================================
 # Main
 # =========================================================================
 
@@ -375,6 +504,35 @@ def main():
         help="Batch size for SSA-COMET scoring.",
     )
 
+    # ASR text normalization. Default mirrors DEFAULT_NORMALIZER
+    # (lowercase + remove punctuation). The flags below let the frozen dev
+    # scheme be applied — the recommended frozen choice from the dev
+    # normalization sweep is '+nfc': lowercase + remove_punctuation +
+    # unicode_form=NFC (diacritics/tone marks preserved). See
+    # utils/normalization_sweep.py.
+    parser.add_argument(
+        "--asr-no-lowercase", action="store_true",
+        help="ASR: do NOT lowercase before scoring (default: lowercase).",
+    )
+    parser.add_argument(
+        "--asr-keep-punct", action="store_true",
+        help="ASR: keep punctuation before scoring (default: remove).",
+    )
+    parser.add_argument(
+        "--asr-unicode-form", choices=["NFC", "NFKC", "NFD", "NFKD"], default=None,
+        help="ASR: Unicode normalization form (e.g. NFC). Default: none.",
+    )
+
+    parser.add_argument(
+        "--per-instance", action="store_true",
+        help=(
+            "Also write per-row scores as columns into each predictions CSV "
+            "(in place). ASR: wer, cer. AST: ssa_comet (true per-segment) plus "
+            "sentence-level chrf/bleu/spbleu. Columns are gated by --metrics and "
+            "overwritten on re-run. The corpus metrics JSON is still updated."
+        ),
+    )
+
     parser.add_argument(
         "--dry-run", action="store_true",
         help="Print planned changes without writing.",
@@ -404,10 +562,19 @@ def main():
         print("Error: no metrics requested", file=sys.stderr)
         sys.exit(1)
 
+    # Build the ASR normalizer config from the flags. We always pass an explicit
+    # config (rather than None) so the choice is recorded in each metrics JSON's
+    # metric_config snapshot — making the frozen scheme auditable.
+    asr_normalizer_config = {
+        "lowercase": not args.asr_no_lowercase,
+        "remove_punctuation": not args.asr_keep_punct,
+        "unicode_form": args.asr_unicode_form,
+    }
+
     rc = MetricRecomputer(
         bleu_config={"lowercase": not args.bleu_case_sensitive},
         chrf_config={"word_order": args.chrf_word_order},
-        normalizer_config=None,   # defer to ASRMetricsCalculator's default
+        normalizer_config=asr_normalizer_config,
         ssa_comet_batch_size=args.ssa_comet_batch_size,
         ssa_comet_model=args.ssa_comet_model,
     )
@@ -426,6 +593,7 @@ def main():
         print()
 
     updated = 0
+    per_instance_csvs = 0
     skipped_no_metrics = 0
     skipped_filtered = 0
     skipped_no_match = 0
@@ -492,33 +660,55 @@ def main():
             errors += 1
             continue
 
-        if not updates:
-            continue
+        # Update the corpus metrics JSON (if anything changed).
+        if updates:
+            # Build a human-readable diff line.
+            diff_parts = []
+            for k, new in updates.items():
+                if k in ("num_samples", "metric_config"):
+                    continue
+                old = metrics_json.get(k)
+                if isinstance(new, float) and isinstance(old, (int, float)):
+                    diff_parts.append(f"{k}: {old:.4f} → {new:.4f}")
+                elif new is None and old is None:
+                    continue
+                else:
+                    diff_parts.append(f"{k}: {old} → {new}")
 
-        # Build a human-readable diff line.
-        diff_parts = []
-        for k, new in updates.items():
-            if k in ("num_samples", "metric_config"):
-                continue
-            old = metrics_json.get(k)
-            if isinstance(new, float) and isinstance(old, (int, float)):
-                diff_parts.append(f"{k}: {old:.4f} → {new:.4f}")
-            elif new is None and old is None:
-                continue
+            diff_str = ", ".join(diff_parts) if diff_parts else "(no scalar changes)"
+            print(f"✏️  {label}\n     {diff_str}")
+
+            if not args.dry_run:
+                metrics_json.update(updates)
+                with open(metrics_path, "w", encoding="utf-8") as f:
+                    json.dump(metrics_json, f, indent=2)
+                updated += 1
+
+        # Optionally write per-instance score columns into the predictions CSV.
+        if args.per_instance:
+            try:
+                fieldnames, rows = _read_csv_rows(pred_csv)
+                if task == "asr":
+                    new_cols = _per_instance_asr(rows, task_metrics, rc)
+                else:
+                    new_cols = _per_instance_ast(rows, task_metrics, rc)
+                written = _apply_per_instance(
+                    pred_csv, fieldnames, rows, new_cols, args.dry_run
+                )
+            except Exception as e:
+                print(f"⚠️  {label}: per-instance failed: {e}")
+                errors += 1
             else:
-                diff_parts.append(f"{k}: {old} → {new}")
-
-        diff_str = ", ".join(diff_parts) if diff_parts else "(no scalar changes)"
-        print(f"✏️  {label}\n     {diff_str}")
-
-        if not args.dry_run:
-            metrics_json.update(updates)
-            with open(metrics_path, "w", encoding="utf-8") as f:
-                json.dump(metrics_json, f, indent=2)
-            updated += 1
+                if written:
+                    verb = "would add" if args.dry_run else "added"
+                    print(f"  📋 {pred_csv.name}: {verb} column(s) {written}")
+                    if not args.dry_run:
+                        per_instance_csvs += 1
 
     print()
     print(f"{'Would update' if args.dry_run else 'Updated'}: {updated} file(s)")
+    if args.per_instance and not args.dry_run:
+        print(f"Per-instance columns written to: {per_instance_csvs} CSV(s)")
     if skipped_filtered:
         print(f"Skipped (filtered out): {skipped_filtered}")
     if skipped_no_metrics:
