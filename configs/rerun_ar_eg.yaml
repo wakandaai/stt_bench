@@ -1,0 +1,18 @@
+# configs/rerun_ar_eg.yaml
+#
+# Minimal config to re-run FLEURS ar_eg ASR only, after the generate()
+# decoding fix (no_repeat_ngram). Writes into the same `african_eval`
+# experiment so it overwrites the existing predictions/metrics for ar_eg.
+#
+# Run with:
+#   python scripts/evaluate.py speech_aura_transcribe \
+#       --eval-config configs/rerun_ar_eg.yaml --force
+
+experiment_name: african_eval
+
+datasets:
+  fleurs:
+    split: test
+    asr:
+      languages:
+        - ar_eg    # Arabic

@@ -1,0 +1,60 @@
+# configs/african_ast.yaml
+#
+# AST-only evaluation, into English. For translation-only models that have no
+# ASR head — speech_nllb_st_v2, speech_aura_translate.
+#
+# african_evaluation.yaml is ASR-first: its ast: blocks are all commented out, so
+# an AST-only model matches zero cells there and exits having evaluated nothing.
+# This config carries the live ast: blocks instead, and omits asr: entirely so
+# those models don't advertise capabilities they lack.
+#
+# Only the three datasets with reference translations appear here — nchlt, waxal
+# and bembaspeech are ASR-only corpora.
+#
+# direction: forward = X→en_us, which is the number to compare against the
+# cascade baseline. Switch to `both` to add en_us→X (roughly doubles runtime).
+#
+# Run with:
+#   python scripts/evaluate.py speech_nllb_st_v2 \
+#       --eval-config configs/african_ast_eval.yaml --output-dir results/
+
+experiment_name: african_ast
+
+datasets:
+
+  fleurs:
+    split: test
+    ast:
+      # Every source here is in the 20 languages the model was trained on.
+      # en_us is listed as a source but self-pairs are dropped on expansion.
+      sources:
+        - am_et    # Amharic
+        - ha_ng    # Hausa
+        - ig_ng    # Igbo
+        - lg_ug    # Luganda
+        - ln_cd    # Lingala
+        - sn_zw    # Shona
+        - sw_ke    # Swahili
+        - xh_za    # Xhosa
+        - yo_ng    # Yoruba
+        - zu_za    # Zulu
+        - ar_eg    # Arabic
+        - fr_fr    # French
+        - pt_br    # Portuguese
+      anchors: [en_us]
+      direction: both
+
+  mbaza_fleurs_rw:
+    local_path: /ocean/projects/cis250145p/shared/datasets/mbazaNLP_fleurs-kinyarwanda
+    split: test
+    ast:
+      sources: [rw_rw]   # Kinyarwanda
+      anchors: [en_us]
+      direction: both
+
+  bigc:
+    local_path: /ocean/projects/cis250145p/shared/datasets/bigc/data/bem
+    split: test
+    ast:
+      pairs:
+        - [bem, en_us]   # Bemba
