@@ -58,6 +58,13 @@ class WhisperModel(BaseSTTModel):
         self._asr_languages = get_whisper_asr_languages()
         self._ast_pairs = get_whisper_ast_pairs()
 
+        # Was 1 sample/call (single-file loop in transcribe/translate) -- left
+        # the GPU ~50% idle on V100 (CPU-bound feature-extraction + per-call
+        # overhead between generate() calls, no overlap). Batching through the
+        # pipeline's own batch_size doesn't change per-sample results, only
+        # throughput.
+        self.batch_size = model_config.get("batch_size", 8)
+
     def _get_asr_pipeline(self):
         if self._asr_pipe is None:
             self._asr_pipe = pipeline(
@@ -67,6 +74,7 @@ class WhisperModel(BaseSTTModel):
                 feature_extractor=self.processor.feature_extractor,
                 torch_dtype=self.torch_dtype,
                 device=self.device,
+                batch_size=self.batch_size,
             )
         return self._asr_pipe
 
@@ -104,17 +112,21 @@ class WhisperModel(BaseSTTModel):
 
         audio_batch = self._samples_to_pipe_inputs(samples)
 
-        transcriptions = []
-        for audio_input in audio_batch:
-            if audio_input is None:
-                transcriptions.append("")
-                continue
+        # Batch everything that loaded OK through one pipeline call (the
+        # pipeline internally chunks by self.batch_size); failed loads keep
+        # their "" placeholder at the right index without entering the batch.
+        valid_idx = [i for i, a in enumerate(audio_batch) if a is not None]
+        transcriptions = [""] * len(samples)
+        if valid_idx:
             try:
-                result = pipe(audio_input, generate_kwargs=gen_kwargs)
-                transcriptions.append(result["text"].strip())
+                results = pipe(
+                    [audio_batch[i] for i in valid_idx],
+                    generate_kwargs=gen_kwargs,
+                )
+                for i, result in zip(valid_idx, results):
+                    transcriptions[i] = result["text"].strip()
             except Exception as e:
-                print(f"    Transcription error: {e}")
-                transcriptions.append("")
+                print(f"    Batch transcription error: {e}")
 
         return transcriptions
 

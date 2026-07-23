@@ -236,3 +236,23 @@ omni_ctc_v2_50k:
   checkpoint: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage1_v2_ddp2/encoder_step50000.pt"
   tokenizer: "/ocean/projects/cis250145p/tanghang/iwslt2026/checkpoints/omniasr_ctc_1b/omniASR_tokenizer.model"
   tasks: ["asr"]
+
+# Weight-interpolated ("model soup") checkpoints: linear average of the base
+# omniASR-CTC-1B.pt and the fine-tuned encoder_step50000.pt, in the base
+# checkpoint's own {"model": state_dict} format (see .envs/scripts/make_soup.py).
+# Testing whether this recovers some of the FLEURS-domain generalization lost
+# to full-parameter fine-tuning (see omni_ctc_base vs omni_ctc_v2_50k deltas)
+# while keeping most of the WAXAL/NCHLT/Bemba gains.
+omni_ctc_soup50:
+  model_type: "omniasr_ctc"
+  model_name: "omni_ctc_soup50"
+  checkpoint: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage1_v2_ddp2/soup_alpha50.pt"
+  tokenizer: "/ocean/projects/cis250145p/tanghang/iwslt2026/checkpoints/omniasr_ctc_1b/omniASR_tokenizer.model"
+  tasks: ["asr"]
+
+omni_ctc_soup70:
+  model_type: "omniasr_ctc"
+  model_name: "omni_ctc_soup70"
+  checkpoint: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage1_v2_ddp2/soup_alpha70.pt"
+  tokenizer: "/ocean/projects/cis250145p/tanghang/iwslt2026/checkpoints/omniasr_ctc_1b/omniASR_tokenizer.model"
+  tasks: ["asr"]
