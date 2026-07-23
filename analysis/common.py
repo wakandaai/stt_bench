@@ -69,6 +69,9 @@ MODEL_DISPLAY: Dict[str, str] = {
     "omniASR_LLM_1B": "OmniASR-LLM-1B",
     "speech_aura_transcribe": "Aura-ASR",
     "facebook_seamless-m4t-v2-large": "SeamlessM4T-v2",
+    "omni_ctc_base": "Omni-CTC-base",
+    "omni_ctc_v1": "Omni-CTC-v1",
+    "omni_ctc_v2_50k": "Omni-CTC-50k",
 }
 
 # Whether a model uses an LM decoder (drives the B4->B5 contrast reading).
@@ -79,6 +82,9 @@ MODEL_HAS_LM: Dict[str, bool] = {
     "OmniASR-LLM-1B": True,   # English-centric LLM decoder
     "Aura-ASR": True,         # African-text LLM decoder (ours)
     "SeamlessM4T-v2": True,   # seq2seq w/ implicit LM
+    "Omni-CTC-base": False,   # Meta's original release, no fine-tuning, no LM decoder
+    "Omni-CTC-v1": False,     # our fine-tuned omniASR_CTC_1B — no LM decoder
+    "Omni-CTC-50k": False,
 }
 
 

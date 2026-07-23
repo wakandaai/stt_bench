@@ -203,3 +203,36 @@ omni_asr_llm_3b:
   model_type: "omni_asr"
   torch_dtype: "bfloat16"
   tasks: ["asr"]
+
+# ============================================================================
+# Our fine-tuned omniASR_CTC_1B (aura-asr-v1 project). ASR-only, greedy CTC
+# decoding over the encoder's own 9812-piece SentencePiece vocab, no LLM.
+# Loaded directly from its real checkpoint/tokenizer paths (no export dir —
+# see stt_benchmark/models/hf/omniasr_ctc.py's module docstring for why).
+# Two separate entries so both stay independently trackable as Stage 1 v2
+# continues training toward 100k steps.
+# ============================================================================
+
+omni_ctc_base:
+  # Meta's original release, before any of our fine-tuning — same adapter,
+  # same tokenizer; _build_and_load() already handles this checkpoint's
+  # "model" key format (vs. our fine-tuned checkpoints' "model_state_dict").
+  model_type: "omniasr_ctc"
+  model_name: "omni_ctc_base"
+  checkpoint: "/ocean/projects/cis250145p/tanghang/iwslt2026/checkpoints/omniasr_ctc_1b/omniASR-CTC-1B.pt"
+  tokenizer: "/ocean/projects/cis250145p/tanghang/iwslt2026/checkpoints/omniasr_ctc_1b/omniASR_tokenizer.model"
+  tasks: ["asr"]
+
+omni_ctc_v1:
+  model_type: "omniasr_ctc"
+  model_name: "omni_ctc_v1"
+  checkpoint: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage1_omniasr_ctc_22lang_h100_weighted/encoder_step20000.pt"
+  tokenizer: "/ocean/projects/cis250145p/tanghang/iwslt2026/checkpoints/omniasr_ctc_1b/omniASR_tokenizer.model"
+  tasks: ["asr"]
+
+omni_ctc_v2_50k:
+  model_type: "omniasr_ctc"
+  model_name: "omni_ctc_v2_50k"
+  checkpoint: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage1_v2_ddp2/encoder_step50000.pt"
+  tokenizer: "/ocean/projects/cis250145p/tanghang/iwslt2026/checkpoints/omniasr_ctc_1b/omniASR_tokenizer.model"
+  tasks: ["asr"]

@@ -12,6 +12,7 @@ from stt_benchmark.models.hf.cascaded import CascadedMmsNllbModel
 from stt_benchmark.models.hf.speech_aura import SpeechAuraModel
 from stt_benchmark.models.hf.ctc_encoder import CTCEncoderModel
 from stt_benchmark.models.hf.omni_asr import OmniAsrModel
+from stt_benchmark.models.hf.omniasr_ctc import OmniAsrCtcModel
 
 
 
@@ -30,6 +31,7 @@ class ModelFactory:
         "speech_nllb": SpeechAuraModel,
         "ctc_encoder": CTCEncoderModel,
         "omni_asr": OmniAsrModel,
+        "omniasr_ctc": OmniAsrCtcModel,
     }
 
     @classmethod
