@@ -5,6 +5,7 @@
 Supports:
 - ASR: transcribe audio in ~99 languages
 - AST: translate audio from ~99 languages to English only
+results tie to the https://github.com/openai/whisper/discussions/1762
 """
 
 import torch
@@ -75,6 +76,12 @@ class WhisperModel(BaseSTTModel):
                 torch_dtype=self.torch_dtype,
                 device=self.device,
                 batch_size=self.batch_size,
+                # Any sample >30s (>3000 mel frames) otherwise forces Whisper's
+                # long-form path, which requires return_timestamps=True and
+                # broke every batch containing one -- chunk_length_s keeps
+                # every window <=30s so the plain transcribe path always
+                # applies, batched or not.
+                chunk_length_s=30,
             )
         return self._asr_pipe
 

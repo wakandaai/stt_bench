@@ -72,6 +72,8 @@ MODEL_DISPLAY: Dict[str, str] = {
     "omni_ctc_base": "Omni-CTC-base",
     "omni_ctc_v1": "Omni-CTC-v1",
     "omni_ctc_v2_50k": "Omni-CTC-50k",
+    "omni_ctc_soup50": "Omni-CTC-soup50",
+    "omni_ctc_soup70": "Omni-CTC-soup70",
 }
 
 # Whether a model uses an LM decoder (drives the B4->B5 contrast reading).
@@ -85,6 +87,8 @@ MODEL_HAS_LM: Dict[str, bool] = {
     "Omni-CTC-base": False,   # Meta's original release, no fine-tuning, no LM decoder
     "Omni-CTC-v1": False,     # our fine-tuned omniASR_CTC_1B — no LM decoder
     "Omni-CTC-50k": False,
+    "Omni-CTC-soup50": False,  # linear weight average of base + 50k, no LM decoder
+    "Omni-CTC-soup70": False,
 }
 
 
