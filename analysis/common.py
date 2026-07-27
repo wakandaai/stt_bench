@@ -74,6 +74,7 @@ MODEL_DISPLAY: Dict[str, str] = {
     "omni_ctc_v2_50k": "Omni-CTC-50k",
     "omni_ctc_soup50": "Omni-CTC-soup50",
     "omni_ctc_soup70": "Omni-CTC-soup70",
+    "omni_ctc_v3_fleurs_100k": "Omni-CTC-v3-100k",
 }
 
 # Whether a model uses an LM decoder (drives the B4->B5 contrast reading).
@@ -89,6 +90,7 @@ MODEL_HAS_LM: Dict[str, bool] = {
     "Omni-CTC-50k": False,
     "Omni-CTC-soup50": False,  # linear weight average of base + 50k, no LM decoder
     "Omni-CTC-soup70": False,
+    "Omni-CTC-v3-100k": False,
 }
 
 

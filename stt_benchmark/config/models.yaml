@@ -256,3 +256,14 @@ omni_ctc_soup70:
   checkpoint: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage1_v2_ddp2/soup_alpha70.pt"
   tokenizer: "/ocean/projects/cis250145p/tanghang/iwslt2026/checkpoints/omniasr_ctc_1b/omniASR_tokenizer.model"
   tasks: ["asr"]
+
+# Stage 1 v3: continues from encoder_step50000.pt (v2_50k) for 50k more steps
+# on ASR_INDEX_V5_16k.csv (FLEURS train rows added for 11 languages) instead
+# of V4 -- see configs/experiment/stage1/stage1_v3_fleurs_v100x4.yaml. Real
+# test of whether this beats omni_ctc_v2_50k AND omni_ctc_soup50 on FLEURS.
+omni_ctc_v3_fleurs_100k:
+  model_type: "omniasr_ctc"
+  model_name: "omni_ctc_v3_fleurs_100k"
+  checkpoint: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage1_v3_fleurs/encoder_step100000.pt"
+  tokenizer: "/ocean/projects/cis250145p/tanghang/iwslt2026/checkpoints/omniasr_ctc_1b/omniASR_tokenizer.model"
+  tasks: ["asr"]
