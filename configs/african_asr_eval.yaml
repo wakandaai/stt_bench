@@ -51,6 +51,7 @@ datasets:
     split: test
     asr:
       languages:
+        - af_za
         - st_za
         - tn_za
         - xh_za

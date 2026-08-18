@@ -13,6 +13,7 @@ from stt_benchmark.models.hf.speech_aura import SpeechAuraModel
 from stt_benchmark.models.hf.ctc_encoder import CTCEncoderModel
 from stt_benchmark.models.hf.omni_asr import OmniAsrModel
 from stt_benchmark.models.hf.omniasr_ctc import OmniAsrCtcModel
+from stt_benchmark.models.hf.speech_aura_full import SpeechAuraFullModel
 
 
 
@@ -32,6 +33,7 @@ class ModelFactory:
         "ctc_encoder": CTCEncoderModel,
         "omni_asr": OmniAsrModel,
         "omniasr_ctc": OmniAsrCtcModel,
+        "speech_aura_full": SpeechAuraFullModel,
     }
 
     @classmethod

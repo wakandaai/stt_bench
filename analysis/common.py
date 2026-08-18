@@ -75,6 +75,9 @@ MODEL_DISPLAY: Dict[str, str] = {
     "omni_ctc_soup50": "Omni-CTC-soup50",
     "omni_ctc_soup70": "Omni-CTC-soup70",
     "omni_ctc_v3_fleurs_100k": "Omni-CTC-v3-100k",
+    "stage4_v1_step45000": "Aura-Stage4-v1",
+    "stage5_v1_step40000": "Aura-Stage5-v1",
+    "stage6_v1_step95000": "Aura-Stage6-v1",
 }
 
 # Whether a model uses an LM decoder (drives the B4->B5 contrast reading).
@@ -91,6 +94,9 @@ MODEL_HAS_LM: Dict[str, bool] = {
     "Omni-CTC-soup50": False,  # linear weight average of base + 50k, no LM decoder
     "Omni-CTC-soup70": False,
     "Omni-CTC-v3-100k": False,
+    "Aura-Stage4-v1": True,   # our own encoder -> projector -> Aura-1B LLM decoder
+    "Aura-Stage5-v1": True,   # same, encoder now also unfrozen/fine-tuned
+    "Aura-Stage6-v1": True,   # same, V6 index (NCHLT-augmented) + max_duration=30 + extended LR schedule
 }
 
 

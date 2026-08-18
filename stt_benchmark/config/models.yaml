@@ -267,3 +267,39 @@ omni_ctc_v3_fleurs_100k:
   checkpoint: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage1_v3_fleurs/encoder_step100000.pt"
   tokenizer: "/ocean/projects/cis250145p/tanghang/iwslt2026/checkpoints/omniasr_ctc_1b/omniASR_tokenizer.model"
   tasks: ["asr"]
+
+# Stage 4 v1 (full LLM fine-tune, encoder frozen). Best checkpoint by
+# internal val WER (0.2662 at step 45000).
+stage4_v1_step45000:
+  model_type: "speech_aura_full"
+  model_name: "stage4_v1_step45000"
+  checkpoint_dir: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage4_v1_interactive/checkpoint_step45000"
+  encoder_checkpoint: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage1_v3_fleurs/encoder_step100000.pt"
+  aura_checkpoint: "/ocean/projects/cis250145p/shared/checkpoints/Aura-1B/model.pt"
+  aura_tokenizer: "/ocean/projects/cis250145p/shared/checkpoints/Aura-1B/tokenizer.json"
+  tasks: ["asr"]
+
+# Stage 5 v1 (full unfreeze: encoder + LLM both trainable). Best checkpoint by
+# internal val WER (0.2597 at step 40000). encoder_checkpoint is only the
+# architecture seed — the real fine-tuned encoder weights load from
+# checkpoint_dir/encoder.pt via SpeechAura.load_checkpoint().
+stage5_v1_step40000:
+  model_type: "speech_aura_full"
+  model_name: "stage5_v1_step40000"
+  checkpoint_dir: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage4_v1_batch/checkpoint_step40000"
+  encoder_checkpoint: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage1_v3_fleurs/encoder_step100000.pt"
+  aura_checkpoint: "/ocean/projects/cis250145p/shared/checkpoints/Aura-1B/model.pt"
+  aura_tokenizer: "/ocean/projects/cis250145p/shared/checkpoints/Aura-1B/tokenizer.json"
+  tasks: ["asr"]
+
+# Stage 6 (stage4_v2_batch): V6 index (NCHLT-augmented for zul/xho/sot/tsn) +
+# max_duration 20.0->30.0 (WAXAL fix) + extended LR schedule (150k steps).
+# Best checkpoint by internal val WER (0.2511 at step 95000).
+stage6_v1_step95000:
+  model_type: "speech_aura_full"
+  model_name: "stage6_v1_step95000"
+  checkpoint_dir: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage4_v2_batch/checkpoint_step95000"
+  encoder_checkpoint: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage1_v3_fleurs/encoder_step100000.pt"
+  aura_checkpoint: "/ocean/projects/cis250145p/shared/checkpoints/Aura-1B/model.pt"
+  aura_tokenizer: "/ocean/projects/cis250145p/shared/checkpoints/Aura-1B/tokenizer.json"
+  tasks: ["asr"]
