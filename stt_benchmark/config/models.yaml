@@ -330,3 +330,15 @@ sunflower_asr_51:
   tasks: ["asr"]
   generation_config:
     max_new_tokens: 384
+
+# Ethio-ASR multilingual 600M (Wav2Vec2-BERT 2.0 CTC, joint ASR + language ID; trained on google/WaxalNLP, so WAXAL test is
+# in-domain). Emits a leading language tag ([AMH] [TIR] [ORM] [SID] [WAL]) that the adapter strips and records.
+ethio_asr_600m:
+  model_name: "badrex/Ethio-ASR-multilingual-600M"
+  model_type: "w2v_bert_ctc"
+  revision: "5a099192a8a56f118d3515f70f5f44428fd29730"
+  cache_dir: "/work/nvme/bfbf/etanghang/stt_bench_data/hf_models"
+  torch_dtype: "float32"
+  languages: ["am_et", "ti_et", "om_et"]
+  language_tags: {am_et: "[AMH]", ti_et: "[TIR]", om_et: "[ORM]"}
+  tasks: ["asr"]

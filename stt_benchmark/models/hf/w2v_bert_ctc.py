@@ -11,7 +11,8 @@ Strictness: any language other than the model's own raises; any audio problem ra
 (the leaderboard layer counts errors, it never sees silently empty hypotheses).
 """
 
-from typing import Any, Dict, List, Set
+import re
+from typing import Any, Dict, List, Optional, Set
 
 import torch
 
@@ -29,6 +30,12 @@ class W2vBertCtcModel(BaseASRModel):
         self.model_name = model_name
         self.config = model_config
         self.languages: Set[str] = set(model_config["languages"])      # repo codes, e.g. ["rw_rw"]
+        # Joint ASR+LID models (e.g. Ethio-ASR) emit a leading language tag token such as "[AMH]". The caller cannot force
+        # the language; the tag is stripped from the hypothesis and recorded so language-ID mismatches stay measurable.
+        self.language_tags: Dict[str, str] = dict(model_config.get("language_tags") or {})
+        self.tag_log: List[Dict[str, Optional[str]]] = []
+        if self.language_tags and set(self.language_tags) != self.languages:
+            raise ValueError("language_tags keys must equal languages")
         self.revision = model_config.get("revision")
         cache_dir = model_config.get("cache_dir")
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -55,7 +62,15 @@ class W2vBertCtcModel(BaseASRModel):
             with torch.inference_mode():
                 logits = self.model(**inputs).logits
             ids = torch.argmax(logits, dim=-1)
-            out.append(self.processor.batch_decode(ids)[0].strip())
+            text = self.processor.batch_decode(ids)[0].strip()
+            if self.language_tags:
+                mt = re.match(r"^\s*(\[[A-Z]{3}\])\s*", text)
+                predicted = mt.group(1) if mt else None
+                if mt:
+                    text = text[mt.end():].strip()
+                self.tag_log.append({"sample_id": s.sample_id, "language": language,
+                                     "expected_tag": self.language_tags[language], "predicted_tag": predicted})
+            out.append(text)
         return out
 
     @property

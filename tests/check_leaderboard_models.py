@@ -63,5 +63,21 @@ for lang in ["ti_et", "fon_bj"]:
 long = AudioSample(transcription="x", language="rw_rw", sample_id="long", audio_array=np.zeros(16000 * 31, dtype=np.float32) + 0.01, sampling_rate=16000)
 try: m.transcribe([long], "rw_rw"); check("sunflower: audio > 30 s raises (no silent truncation)", False)
 except ValueError: check("sunflower: audio > 30 s raises (no silent truncation)", True)
+# ---------- Ethio-ASR (joint ASR + LID, language tag stripped and recorded)
+del m; torch.cuda.empty_cache()
+t = time.time()
+m = W2vBertCtcModel("badrex/Ethio-ASR-multilingual-600M", {"revision": "5a099192a8a56f118d3515f70f5f44428fd29730", "cache_dir": CACHE,
+        "torch_dtype": "float32", "languages": ["am_et", "ti_et", "om_et"], "language_tags": {"am_et": "[AMH]", "ti_et": "[TIR]", "om_et": "[ORM]"}})
+print("loaded ethio-asr in %.0fs" % (time.time() - t))
+S = take("am_et"); H = m.transcribe(S, "am_et")
+check("ethio: non-empty hypotheses, no tag left in the text", len(H) == len(S) and all(h and not h.startswith("[") for h in H), f"{sum(1 for h in H if not h)} empty")
+tags = [r["predicted_tag"] for r in m.tag_log]
+check("ethio: predicted language tag recorded for every clip", len(tags) == len(S) and all(t_ is not None for t_ in tags), f"tags: {sorted(set(map(str, tags)))}")
+print("  Amharic: LID match %d/%d | rough WER/CER on 16 SimbaBench Amharic clips (ALFFA/CV, out of domain, smoke only): %.1f / %.1f" % (
+    sum(1 for r in m.tag_log if r["predicted_tag"] == r["expected_tag"]), len(m.tag_log), *rough(H, [x.transcription for x in S])))
+for x, h in list(zip(S, H))[:2]: print("   REF:", x.transcription, "\n   HYP:", h)
+check("ethio: batch == singles", m.transcribe(S[:4], "am_et") == [m.transcribe([x], "am_et")[0] for x in S[:4]])
+try: m.transcribe(take("rw_rw", 2), "rw_rw"); check("ethio: unsupported language raises", False)
+except ValueError: check("ethio: unsupported language raises", True)
 print("\nLEADERBOARD MODELS:", "ALL PASSED" if not FAILS else f"{len(FAILS)} FAILED: {FAILS}")
 sys.exit(1 if FAILS else 0)
