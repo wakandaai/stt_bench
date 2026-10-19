@@ -68,3 +68,27 @@ datasets:
         - mg_mg    # Malagasy
         - sn_zw 
         - ti_et    # Tigrinya
+
+  # SimbaBench ASR test (UBC-NLP/SimbaBench_dataset, CC-BY-4.0), local parquet copy.
+  # Release sizes: ibo 5 and tir 7 test rows are NOT reportable (left out below).
+  # kin is Common Voice 19 (contamination risk for models pretrained on Common Voice).
+  simbabench:
+    local_path: /work/nvme/bfbf/shared/datasets_16k/SimbaBench
+    split: test
+    asr:
+      languages:
+        - af_za
+        - am_et
+        - bem
+        - fon_bj
+        - ha_ng
+        - rw_rw
+        - lg_ug
+        - ny_mw
+        - st_za
+        - sw_ke
+        - tn_za
+        - wo_sn
+        - xh_za
+        - yo_ng
+        - zu_za
