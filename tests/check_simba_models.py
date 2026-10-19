@@ -17,7 +17,7 @@ def check(n, ok, d=""):
 norm = lambda t: re.sub(r"\s+", " ", re.sub(r"[^\w\s']", "", t.lower().replace("’", "'"))).strip()
 def rough(h, r): return wer([norm(x) for x in r], [norm(x) for x in h]) * 100, cer([norm(x) for x in r], [norm(x) for x in h]) * 100
 
-simba = create_dataset("simbabench", local_path="/work/nvme/bfbf/etanghang/stt_bench_data/simbabench",
+simba = create_dataset("simbabench", local_path="/work/nvme/bfbf/shared/datasets_16k/SimbaBench",
                        languages=["rw_rw", "af_za", "wo_sn", "am_et", "sw_ke", "ha_ng"])
 CLIPS = {c: simba.get_language_samples(c)[:16] for c in ["rw_rw", "af_za", "wo_sn", "am_et", "sw_ke", "ha_ng"]}
 def run(m, tag):

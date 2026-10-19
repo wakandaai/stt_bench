@@ -73,7 +73,7 @@ datasets:
   # Release sizes: ibo 5 and tir 7 test rows are NOT reportable (left out below).
   # kin is Common Voice 19 (contamination risk for models pretrained on Common Voice).
   simbabench:
-    local_path: /work/nvme/bfbf/etanghang/stt_bench_data/simbabench
+    local_path: /work/nvme/bfbf/shared/datasets_16k/SimbaBench
     split: test
     asr:
       languages:

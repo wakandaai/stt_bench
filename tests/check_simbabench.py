@@ -5,7 +5,7 @@ sys.path.insert(0, ".")
 import numpy as np
 from stt_benchmark.datasets.registry import create_dataset
 
-ROOT = "/work/nvme/bfbf/etanghang/stt_bench_data/simbabench"
+ROOT = "/work/nvme/bfbf/shared/datasets_16k/SimbaBench"
 EXPECTED = {  # rows from the dataset card / HF file metadata (swa+swh = 500+500)
     "af_za": 1000, "am_et": 581, "bem": 1000, "fon_bj": 1000, "ha_ng": 681, "rw_rw": 1000, "lg_ug": 1000,
     "ny_mw": 428, "st_za": 1000, "sw_ke": 1000, "tn_za": 1000, "wo_sn": 1000, "xh_za": 1000, "yo_ng": 359, "zu_za": 1000,
