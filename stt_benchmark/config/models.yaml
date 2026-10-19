@@ -303,3 +303,30 @@ stage6_v1_step95000:
   aura_checkpoint: "/ocean/projects/cis250145p/shared/checkpoints/Aura-1B/model.pt"
   aura_tokenizer: "/ocean/projects/cis250145p/shared/checkpoints/Aura-1B/tokenizer.json"
   tasks: ["asr"]
+
+# ============================================================================
+# Leaderboard baselines (public models). Revisions are pinned; weights are cached
+# on /work, not in $HOME.
+# ============================================================================
+
+# Kinyarwanda-only Wav2Vec2-BERT 2.0 CTC (Digital Umuganda ~1000 h Kaggle Track B corpus; in-domain for that corpus).
+w2v_bert_kinyarwanda:
+  model_name: "badrex/w2v-bert-2.0-kinyarwanda-asr"
+  model_type: "w2v_bert_ctc"
+  revision: "fca35cff2c827d02f2e87c29a15abd358cd69f25"
+  cache_dir: "/work/nvme/bfbf/etanghang/stt_bench_data/hf_models"
+  torch_dtype: "float32"
+  languages: ["rw_rw"]
+  tasks: ["asr"]
+
+# Sunbird SunflowerASR (Whisper large-v3, 51 languages, language token supplied by the caller; gated: auto).
+sunflower_asr_51:
+  model_name: "Sunbird/SunflowerASR-51-african-languages"
+  model_type: "sunflower_whisper"
+  revision: "4583c9dd251c422a4325fb0a0a509a3828097be2"
+  cache_dir: "/work/nvme/bfbf/etanghang/stt_bench_data/hf_models"
+  torch_dtype: "float16"
+  batch_size: 8
+  tasks: ["asr"]
+  generation_config:
+    max_new_tokens: 384

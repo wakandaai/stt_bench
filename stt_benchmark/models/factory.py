@@ -14,6 +14,8 @@ from stt_benchmark.models.hf.ctc_encoder import CTCEncoderModel
 from stt_benchmark.models.hf.omni_asr import OmniAsrModel
 from stt_benchmark.models.hf.omniasr_ctc import OmniAsrCtcModel
 from stt_benchmark.models.hf.speech_aura_full import SpeechAuraFullModel
+from stt_benchmark.models.hf.w2v_bert_ctc import W2vBertCtcModel
+from stt_benchmark.models.hf.sunflower_whisper import SunflowerWhisperModel
 
 
 
@@ -34,6 +36,8 @@ class ModelFactory:
         "omni_asr": OmniAsrModel,
         "omniasr_ctc": OmniAsrCtcModel,
         "speech_aura_full": SpeechAuraFullModel,
+        "w2v_bert_ctc": W2vBertCtcModel,
+        "sunflower_whisper": SunflowerWhisperModel,
     }
 
     @classmethod
