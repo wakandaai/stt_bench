@@ -28,6 +28,9 @@ FLEURS_LANGUAGES = {
     # Bemba — NOT in official Google FLEURS. Listed here so the bembaspeech and
     # bigc datasets can use a first-class language code in our benchmark.
     "bem": {"name": "Bemba", "iso639_3": "bem", "iso639_1": None, "script": "Latn"},
+    # Fon — NOT in official Google FLEURS. Listed here so the simbabench dataset can use a
+    # first-class language code (Fon, Benin). Most model adapters do not support it.
+    "fon_bj": {"name": "Fon", "iso639_3": "fon", "iso639_1": None, "script": "Latn"},
     "bg_bg": {"name": "Bulgarian", "iso639_3": "bul", "iso639_1": "bg", "script": "Cyrl"},
     "bn_in": {"name": "Bengali", "iso639_3": "ben", "iso639_1": "bn", "script": "Beng"},
     "bs_ba": {"name": "Bosnian", "iso639_3": "bos", "iso639_1": "bs", "script": "Latn"},
