@@ -342,3 +342,42 @@ ethio_asr_600m:
   languages: ["am_et", "ti_et", "om_et"]
   language_tags: {am_et: "[AMH]", ti_et: "[TIR]", om_et: "[ORM]"}
   tasks: ["asr"]
+
+# ============================================================================
+# UBC-NLP Simba ASR series (EMNLP 2025). Fine-tuned on SimbaBench train/dev (5 h/language, 43 languages): SimbaBench test
+# sets are IN-DOMAIN for them. Language conditioning of Simba-S/Simba-W is undocumented: decoded without forcing a language
+# (card usage) and the adapter records what the model did. Our 24 covered languages (no English).
+# ============================================================================
+simba_m:
+  model_name: "UBC-NLP/Simba-M"
+  model_type: "simba_ctc"
+  revision: "f4010586dcdac8a2cf7cbde62bed512156843d7a"
+  adapter: "multilingual_african"
+  cache_dir: "/work/nvme/bfbf/etanghang/stt_bench_data/hf_models"
+  torch_dtype: "float32"
+  languages: ["af_za", "am_et", "ar_eg", "bem", "fon_bj", "fr_fr", "ha_ng", "ig_ng", "rw_rw", "ln_cd", "lg_ug", "mg_mg", "pt_br", "sn_zw", "so_so", "st_za", "sw_ke", "ti_et", "tn_za", "wo_sn", "xh_za", "yo_ng", "zu_za", "ny_mw"]
+  tasks: ["asr"]
+
+simba_s:
+  model_name: "UBC-NLP/Simba-S"
+  model_type: "simba_seamless"
+  revision: "a87c8bf9f24edefe9df2d39fe3cb4163fa241b0f"
+  cache_dir: "/work/nvme/bfbf/etanghang/stt_bench_data/hf_models"
+  torch_dtype: "float16"
+  batch_size: 8
+  languages: ["af_za", "am_et", "ar_eg", "bem", "fon_bj", "fr_fr", "ha_ng", "ig_ng", "rw_rw", "ln_cd", "lg_ug", "mg_mg", "pt_br", "sn_zw", "so_so", "st_za", "sw_ke", "ti_et", "tn_za", "wo_sn", "xh_za", "yo_ng", "zu_za", "ny_mw"]
+  tasks: ["asr"]
+  generation_config:
+    max_new_tokens: 256
+
+simba_w:
+  model_name: "UBC-NLP/Simba-W"
+  model_type: "simba_whisper"
+  revision: "2c9c6f54f9e362e5d8a7521575a64ef36df9b9b8"
+  cache_dir: "/work/nvme/bfbf/etanghang/stt_bench_data/hf_models"
+  torch_dtype: "float16"
+  batch_size: 1          # fp16 batch != single on degenerate repetition loops (observed); decode one clip at a time
+  languages: ["af_za", "am_et", "ar_eg", "bem", "fon_bj", "fr_fr", "ha_ng", "ig_ng", "rw_rw", "ln_cd", "lg_ug", "mg_mg", "pt_br", "sn_zw", "so_so", "st_za", "sw_ke", "ti_et", "tn_za", "wo_sn", "xh_za", "yo_ng", "zu_za", "ny_mw"]
+  tasks: ["asr"]
+  generation_config:
+    max_new_tokens: 384
