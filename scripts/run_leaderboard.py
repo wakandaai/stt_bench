@@ -38,6 +38,14 @@ def _public(res: Dict[str, object]) -> Dict[str, object]:
     return {k: (float(v) if hasattr(v, "item") else v) for k, v in res.items() if not k.startswith("_")}
 
 
+def audio_seconds(samples) -> float:
+    import soundfile as sf
+    tot = 0.0
+    for s in samples:
+        tot += (len(s.audio_array) / s.sampling_rate) if s.audio_array is not None else sf.info(s.audio_path).frames / sf.info(s.audio_path).samplerate
+    return tot
+
+
 def infer(model, samples, language: str, batch_size: int):
     """Returns (hypotheses with None for failed utterances, list of error strings, seconds)."""
     hyps: List[Optional[str]] = []
@@ -83,7 +91,10 @@ def run_model(model, model_id: str, specs, out_dir: str, batch_size: int = 1, n_
         if not model.supports_language(lang):
             res = dict(base, status="unsupported")
         else:
-            ds = create_dataset(name, **dict(spec.dataset_kwargs))
+            kw = dict(spec.dataset_kwargs)
+            if limit and name.startswith("cleaned__"):
+                kw["limit"] = limit                                    # verify/decode only what will be used
+            ds = create_dataset(name, **kw)
             samples = ds.get_language_samples(lang)
             if limit:
                 samples = samples[:limit]
@@ -94,7 +105,7 @@ def run_model(model, model_id: str, specs, out_dir: str, batch_size: int = 1, n_
                 w.writerow(["sample_id", "reference", "hypothesis", "failed"])
                 for s, h in zip(samples, hyps):
                     w.writerow([s.sample_id, s.transcription, "" if h is None else h, int(h is None)])
-            res = dict(base, n_requested=len(samples), seconds=round(secs, 2), errors_sample=errors[:3],
+            res = dict(base, n_requested=len(samples), seconds=round(secs, 2), audio_seconds=round(audio_seconds(samples), 2), errors_sample=errors[:3],
                        n_empty_hyp=sum(1 for h in hyps if h == ""), dataset=ds.get_dataset_info(), model=info["model_info"],
                        scorer=info["scorer"], git=info["git"], slurm_job=info["slurm_job"])
             try:

@@ -48,6 +48,7 @@ r = R.run_model(Stub(), "oracle", specs, out, n_boot=50)
 check("oracle: all ok", all(x["status"] == "ok" for x in r))
 check("oracle: WER/CER 0, no failures", all(x["wer"] == 0.0 and x["cer"] == 0.0 and x["n_failed"] == 0 for x in r))
 x = r[0]
+check("result records audio seconds and decode seconds", x["audio_seconds"] > 0 and x["seconds"] >= 0, x.get("audio_seconds"))
 check("result carries provenance", "scorer" in x and x["scorer"]["policy"] == "v1" and "git" in x and "dataset" in x)
 check("predictions.csv written with failed column", os.path.exists(f"{out}/oracle/{x['group']}/predictions.csv") and
       next(csv.reader(open(f"{out}/oracle/{x['group']}/predictions.csv")))[-1] == "failed")

@@ -45,6 +45,7 @@ class CleanedEvalDataset(BaseASRDataset):
         group: str,
         split: str = "test",
         languages: Optional[List[str]] = None,
+        limit: int = 0,
     ):
         if split != "test":
             raise ValueError(f"cleaned eval groups are test-only; got split='{split}'")
@@ -58,6 +59,7 @@ class CleanedEvalDataset(BaseASRDataset):
         if languages is not None and set(languages) != {self.code}:
             raise ValueError(f"group {group} is language '{self.code}', config asked for {languages}")
         self.split = split
+        self.limit = int(limit)              # DEBUG/calibration only: audio of the first N rows is verified/decoded
         self._cache: Optional[List[AudioSample]] = None
 
     # ------------------------------------------------------------------
@@ -76,7 +78,8 @@ class CleanedEvalDataset(BaseASRDataset):
         kind = {r["audio_kind"] for r in rows}
         if len(kind) != 1:
             raise ValueError(f"{self.group}: mixed audio kinds {kind}")
-        samples = self._load_parquet(rows) if kind == {"parquet"} else self._load_wav(rows)
+        use = rows[: self.limit] if self.limit else rows          # the full manifest was already checked above
+        samples = self._load_parquet(use) if kind == {"parquet"} else self._load_wav(use)
         self._cache = samples
         return samples
 
