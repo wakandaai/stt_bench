@@ -18,6 +18,7 @@ from stt_benchmark.datasets.bigc import BigCDataset
 from stt_benchmark.datasets.nchlt import NchltDataset
 from stt_benchmark.datasets.waxal import WaxalDataset
 from stt_benchmark.datasets.simbabench import SimbaBenchDataset
+from stt_benchmark.datasets.cleaned_eval import CleanedEvalDataset
 
 
 # Map config name -> dataset class.
@@ -42,6 +43,9 @@ def create_dataset(name: str, **kwargs) -> Any:
     Returns:
         Dataset instance.
     """
+    # Audited + cleaned evaluation groups: one dataset name per (source, language) group.
+    if name.startswith("cleaned__"):
+        return CleanedEvalDataset(group=name, **kwargs)
     if name not in DATASET_REGISTRY:
         available = sorted(DATASET_REGISTRY.keys())
         raise ValueError(
