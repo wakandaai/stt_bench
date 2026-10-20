@@ -15,7 +15,10 @@ TEXT NORMALISATION (applied identically to references and hypotheses, per langua
      control and separator characters become spaces.
   5. Letters, ALL combining marks (tone marks, harakat) and DIGITS are kept as written. Digits are not converted.
   6. Whitespace collapsed.
-  English (en_us) only: the pinned, vendored openai/whisper EnglishTextNormalizer instead of steps 2-6.
+  English (en_us) only: the pinned, vendored openai/whisper EnglishTextNormalizer instead of steps 2-6. This is the
+  field standard (Whisper paper, Open ASR Leaderboard) and is the HEADLINE English score. Because it rewrites number
+  words and spellings, the plain policy is ALSO reported for English as a disclosed sensitivity column
+  (wer_plain / cer_plain); neither is hidden.
   The Whisper BasicTextNormalizer is deliberately NOT used: it splits words at combining marks.
 
 METRICS: corpus WER and CER (jiwer) on the normalised text; 95% bootstrap CI by resampling utterances;
@@ -25,6 +28,7 @@ ERROR ACCOUNTING: a hypothesis of None means the model failed on that utterance.
   win by crashing quietly). A reference that is empty after normalisation RAISES (it is never silently dropped).
 """
 
+import os
 import unicodedata
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -55,10 +59,11 @@ def _is_word_char(c: str) -> bool:
     return unicodedata.category(c)[0] in "LMN"
 
 
-def normalize(text: str, lang: str) -> str:
-    """Policy-v1 normalisation. See module docstring."""
+def normalize(text: str, lang: str, plain: bool = False) -> str:
+    """Policy-v1 normalisation. See module docstring. `plain=True` forces the language-neutral steps (also for
+    English) - used only for the English sensitivity column."""
     t = unicodedata.normalize("NFC", text)
-    if lang in ENGLISH_CODES:
+    if lang in ENGLISH_CODES and not plain:
         return " ".join(_english_normalizer()(t).split())
     t = t.lower()
     for a in _APOS_VARIANTS:
@@ -85,6 +90,16 @@ def strip_marks(text: str) -> str:
     """Diagnostic only: remove every combining mark (tone marks, harakat) after NFD, then NFC."""
     d = unicodedata.normalize("NFD", text)
     return unicodedata.normalize("NFC", "".join(c for c in d if unicodedata.category(c) != "Mn"))
+
+
+def provenance() -> Dict[str, str]:
+    """Everything needed to reproduce a score: policy version, normaliser file hashes, library versions."""
+    import hashlib, platform
+    from importlib.metadata import version
+    base = os.path.join(os.path.dirname(__file__), "..", "vendor", "whisper_normalizers")
+    h = {f: hashlib.sha256(open(os.path.join(base, f), "rb").read()).hexdigest() for f in ("english.py", "english.json", "basic.py")}
+    return {"policy": POLICY_VERSION, "whisper_normalizers_commit": "86098128c0b4f24f0e2aa2994de830614b474227",
+            "sha256": h, "jiwer": version("jiwer"), "numpy": np.__version__, "python": platform.python_version()}
 
 
 # ----------------------------------------------------------------------------------------------------------
@@ -140,7 +155,9 @@ def score_group(
         raise ScoringAborted(f"{len(empty)} references are empty after normalisation (e.g. index {empty[0]})")
     hyps_n = [normalize(h, lang) if h is not None else "" for h in hypotheses]
 
-    res: Dict[str, object] = {"policy": POLICY_VERSION, "lang": lang, "n": n, "n_failed": len(failed)}
+    res: Dict[str, object] = {"policy": POLICY_VERSION, "lang": lang, "n": n, "n_failed": len(failed),
+                              "normalizer": "whisper-english (pinned, vendored)" if lang in ENGLISH_CODES
+                              else "policy-v1 plain (NFC, tone marks kept)", "bootstrap": f"{n_boot} resamples, seed {seed}"}
     for level, key in (("word", "wer"), ("char", "cer")):
         errs, nref = _per_utterance_errors(refs_n, hyps_n, level)
         r = _corpus_and_ci(errs, nref, n_boot, seed)
@@ -148,6 +165,15 @@ def score_group(
         res[f"{key}_ref_units"] = int(nref.sum())
         res[f"_{key}_errs"] = errs                       # per-utterance arrays, kept for paired comparisons
         res[f"_{key}_nref"] = nref
+    if lang in ENGLISH_CODES:
+        refs_p = [normalize(r, lang, plain=True) for r in references]
+        if any(not r for r in refs_p):
+            raise ScoringAborted("a reference is empty under the plain policy")
+        hyps_p = [normalize(h, lang, plain=True) if h is not None else "" for h in hypotheses]
+        for level, key in (("word", "wer_plain"), ("char", "cer_plain")):
+            errs, nref = _per_utterance_errors(refs_p, hyps_p, level)
+            r = _corpus_and_ci(errs, nref, n_boot, seed)
+            res[key], res[f"{key}_ci_low"], res[f"{key}_ci_high"] = r["rate"], r["ci_low"], r["ci_high"]
     want_diag = (lang in DIAGNOSTIC_LANGS) if diagnostic is None else diagnostic
     if want_diag:
         refs_d = [strip_marks(r) for r in refs_n]

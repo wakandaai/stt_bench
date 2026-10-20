@@ -101,6 +101,16 @@ b = S.score_group(refs, refs, "sw_ke", n_boot=100)
 d1 = S.paired_bootstrap_delta(a, b, "wer", n_boot=200)
 check("paired delta = WER_a - WER_b", abs(d1["delta"] - (a["wer"] - b["wer"])) < 1e-9)
 
+# ---- English: Whisper standard is the headline, plain is a disclosed sensitivity column -------------------
+re_ = S.score_group(["i have 5 apples"], ["I have five apples"], "en_us", n_boot=50)
+check("english headline uses Whisper normaliser (five == 5)", re_["wer"] == 0.0, re_["wer"])
+check("english plain column present and stricter (five != 5)", re_["wer_plain"] > 0.0 and "cer_plain" in re_, re_.get("wer_plain"))
+check("english result names its normaliser", "whisper" in re_["normalizer"])
+check("non-English has no plain column", "wer_plain" not in S.score_group(["a"], ["a"], "sw_ke", n_boot=20))
+pv = S.provenance()
+check("provenance pins Whisper files (hashes match Phase 1 vendor)", pv["sha256"]["english.py"].startswith("d31a52685b5b") and pv["sha256"]["english.json"].startswith("6607f948be98"), pv["sha256"])
+check("provenance records versions", all(k in pv for k in ("policy", "jiwer", "numpy", "python", "whisper_normalizers_commit")))
+
 # ---- real data: FLEURS reference text -----------------------------------------------------------------
 root = "/work/nvme/bfbf/shared/datasets_16k/FLEURS/google_fleurs_test/data"
 if os.path.isdir(root):
