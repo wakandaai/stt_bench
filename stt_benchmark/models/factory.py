@@ -17,6 +17,8 @@ from stt_benchmark.models.hf.speech_aura_full import SpeechAuraFullModel
 from stt_benchmark.models.hf.w2v_bert_ctc import W2vBertCtcModel
 from stt_benchmark.models.hf.sunflower_whisper import SunflowerWhisperModel
 from stt_benchmark.models.hf.simba import SimbaCtcModel, SimbaWhisperModel, SimbaSeamlessModel
+from stt_benchmark.models.hf.conformer_ctc import ConformerCtcModel
+from stt_benchmark.models.hf.strict_hf import StrictWhisperModel, StrictSeamlessModel, StrictMmsModel
 
 
 
@@ -42,6 +44,10 @@ class ModelFactory:
         "simba_ctc": SimbaCtcModel,
         "simba_whisper": SimbaWhisperModel,
         "simba_seamless": SimbaSeamlessModel,
+        "conformer_ctc": ConformerCtcModel,
+        "strict_whisper": StrictWhisperModel,
+        "strict_seamless": StrictSeamlessModel,
+        "strict_mms": StrictMmsModel,
     }
 
     @classmethod

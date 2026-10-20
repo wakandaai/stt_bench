@@ -4,7 +4,6 @@
 
 import numpy as np
 import soundfile as sf
-import librosa
 from typing import Tuple, Union, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -29,6 +28,7 @@ def load_audio(path: str, target_sr: int = 16000) -> Tuple[np.ndarray, int]:
 
     # Resample if needed
     if sr != target_sr:
+        import librosa  # lazy: only the legacy resample path needs it (not installed in every env)
         audio = librosa.resample(audio, orig_sr=sr, target_sr=target_sr)
         sr = target_sr
 
@@ -70,6 +70,7 @@ def resolve_audio(
                 "Sample has audio_array but no sampling_rate; cannot resample."
             )
         if sr != target_sr:
+            import librosa  # lazy, see above
             audio = librosa.resample(audio, orig_sr=sr, target_sr=target_sr)
             sr = target_sr
         return audio, sr

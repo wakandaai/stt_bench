@@ -121,23 +121,23 @@ mms_1b_fl102_nllb_3b_cascaded:
 # inside the export dir, so no other path configuration is needed here.
 # ============================================================================
  
-speech_aura_transcribe:
-  model_type: "speech_aura"
-  model_name: "speech_aura_transcribe"
-  mode: "transcribe"
-  export_dir: "/ocean/projects/cis250145p/gichamba/stt/speechaura/exports/speech_aura_transcribe"
-  tasks: ["asr"]
-  generation_config:
-    max_new_tokens_asr: 128
+# speech_aura_transcribe:
+#   model_type: "speech_aura"
+#   model_name: "speech_aura_transcribe"
+#   mode: "transcribe"
+#   export_dir: "/ocean/projects/cis250145p/gichamba/stt/speechaura/exports/speech_aura_transcribe"
+#   tasks: ["asr"]
+#   generation_config:
+#     max_new_tokens_asr: 128
  
-speech_aura_translate:
-  model_type: "speech_aura"
-  model_name: "speech_aura_translate"
-  mode: "translate"
-  export_dir: "/ocean/projects/cis250145p/gichamba/stt/speechaura/exports/speech_aura_translate"
-  tasks: ["ast"]
-  generation_config:
-    max_new_tokens_st: 256
+# speech_aura_translate:
+#   model_type: "speech_aura"
+#   model_name: "speech_aura_translate"
+#   mode: "translate"
+#   export_dir: "/ocean/projects/cis250145p/gichamba/stt/speechaura/exports/speech_aura_translate"
+#   tasks: ["ast"]
+#   generation_config:
+#     max_new_tokens_st: 256
 
 # ============================================================================
 # SpeechNLLB — same speech frontend (Conformer + CTC compressor + projector),
@@ -152,26 +152,26 @@ speech_aura_translate:
 # `nllb:` block.
 # ============================================================================
 
-speech_nllb_st_v2:
-  model_type: "speech_nllb"
-  model_name: "speech_nllb_st_v2"
-  mode: "translate"
-  export_dir: "/ocean/projects/cis250145p/gichamba/stt/speechaura/exports/speech_nllb_st_v2"
-  tasks: ["ast"]
-  generation_config:
-    max_new_tokens_st: 256
+# speech_nllb_st_v2:
+#   model_type: "speech_nllb"
+#   model_name: "speech_nllb_st_v2"
+#   mode: "translate"
+#   export_dir: "/ocean/projects/cis250145p/gichamba/stt/speechaura/exports/speech_nllb_st_v2"
+#   tasks: ["ast"]
+#   generation_config:
+#     max_new_tokens_st: 256
 
 # Same stage4_nllb_st_v2 run, checkpoint_step27500 — distilled-1.3B base,
 # nllb_trainable: all. Distinct model_name so results don't collide with the
 # v2 (step30000) entry above.
-speech_nllb:
-  model_type: "speech_nllb"
-  model_name: "speech_nllb"
-  mode: "translate"
-  export_dir: "/ocean/projects/cis250145p/gichamba/stt/speechaura/exports/speech_nllb"
-  tasks: ["ast"]
-  generation_config:
-    max_new_tokens_st: 256
+# speech_nllb:
+#   model_type: "speech_nllb"
+#   model_name: "speech_nllb"
+#   mode: "translate"
+#   export_dir: "/ocean/projects/cis250145p/gichamba/stt/speechaura/exports/speech_nllb"
+#   tasks: ["ast"]
+#   generation_config:
+#     max_new_tokens_st: 256
 
 # ============================================================================
 # CTC encoder (pretrained Conformer + CTC, no LLM). ASR-only, greedy decoding.
@@ -223,19 +223,19 @@ omni_ctc_base:
   tokenizer: "/ocean/projects/cis250145p/tanghang/iwslt2026/checkpoints/omniasr_ctc_1b/omniASR_tokenizer.model"
   tasks: ["asr"]
 
-omni_ctc_v1:
-  model_type: "omniasr_ctc"
-  model_name: "omni_ctc_v1"
-  checkpoint: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage1_omniasr_ctc_22lang_h100_weighted/encoder_step20000.pt"
-  tokenizer: "/ocean/projects/cis250145p/tanghang/iwslt2026/checkpoints/omniasr_ctc_1b/omniASR_tokenizer.model"
-  tasks: ["asr"]
+# omni_ctc_v1:
+#   model_type: "omniasr_ctc"
+#   model_name: "omni_ctc_v1"
+#   checkpoint: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage1_omniasr_ctc_22lang_h100_weighted/encoder_step20000.pt"
+#   tokenizer: "/ocean/projects/cis250145p/tanghang/iwslt2026/checkpoints/omniasr_ctc_1b/omniASR_tokenizer.model"
+#   tasks: ["asr"]
 
-omni_ctc_v2_50k:
-  model_type: "omniasr_ctc"
-  model_name: "omni_ctc_v2_50k"
-  checkpoint: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage1_v2_ddp2/encoder_step50000.pt"
-  tokenizer: "/ocean/projects/cis250145p/tanghang/iwslt2026/checkpoints/omniasr_ctc_1b/omniASR_tokenizer.model"
-  tasks: ["asr"]
+# omni_ctc_v2_50k:
+#   model_type: "omniasr_ctc"
+#   model_name: "omni_ctc_v2_50k"
+#   checkpoint: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage1_v2_ddp2/encoder_step50000.pt"
+#   tokenizer: "/ocean/projects/cis250145p/tanghang/iwslt2026/checkpoints/omniasr_ctc_1b/omniASR_tokenizer.model"
+#   tasks: ["asr"]
 
 # Weight-interpolated ("model soup") checkpoints: linear average of the base
 # omniASR-CTC-1B.pt and the fine-tuned encoder_step50000.pt, in the base
@@ -243,19 +243,19 @@ omni_ctc_v2_50k:
 # Testing whether this recovers some of the FLEURS-domain generalization lost
 # to full-parameter fine-tuning (see omni_ctc_base vs omni_ctc_v2_50k deltas)
 # while keeping most of the WAXAL/NCHLT/Bemba gains.
-omni_ctc_soup50:
-  model_type: "omniasr_ctc"
-  model_name: "omni_ctc_soup50"
-  checkpoint: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage1_v2_ddp2/soup_alpha50.pt"
-  tokenizer: "/ocean/projects/cis250145p/tanghang/iwslt2026/checkpoints/omniasr_ctc_1b/omniASR_tokenizer.model"
-  tasks: ["asr"]
+# omni_ctc_soup50:
+#   model_type: "omniasr_ctc"
+#   model_name: "omni_ctc_soup50"
+#   checkpoint: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage1_v2_ddp2/soup_alpha50.pt"
+#   tokenizer: "/ocean/projects/cis250145p/tanghang/iwslt2026/checkpoints/omniasr_ctc_1b/omniASR_tokenizer.model"
+#   tasks: ["asr"]
 
-omni_ctc_soup70:
-  model_type: "omniasr_ctc"
-  model_name: "omni_ctc_soup70"
-  checkpoint: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage1_v2_ddp2/soup_alpha70.pt"
-  tokenizer: "/ocean/projects/cis250145p/tanghang/iwslt2026/checkpoints/omniasr_ctc_1b/omniASR_tokenizer.model"
-  tasks: ["asr"]
+# omni_ctc_soup70:
+#   model_type: "omniasr_ctc"
+#   model_name: "omni_ctc_soup70"
+#   checkpoint: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage1_v2_ddp2/soup_alpha70.pt"
+#   tokenizer: "/ocean/projects/cis250145p/tanghang/iwslt2026/checkpoints/omniasr_ctc_1b/omniASR_tokenizer.model"
+#   tasks: ["asr"]
 
 # Stage 1 v3: continues from encoder_step50000.pt (v2_50k) for 50k more steps
 # on ASR_INDEX_V5_16k.csv (FLEURS train rows added for 11 languages) instead
@@ -270,27 +270,27 @@ omni_ctc_v3_fleurs_100k:
 
 # Stage 4 v1 (full LLM fine-tune, encoder frozen). Best checkpoint by
 # internal val WER (0.2662 at step 45000).
-stage4_v1_step45000:
-  model_type: "speech_aura_full"
-  model_name: "stage4_v1_step45000"
-  checkpoint_dir: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage4_v1_interactive/checkpoint_step45000"
-  encoder_checkpoint: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage1_v3_fleurs/encoder_step100000.pt"
-  aura_checkpoint: "/ocean/projects/cis250145p/shared/checkpoints/Aura-1B/model.pt"
-  aura_tokenizer: "/ocean/projects/cis250145p/shared/checkpoints/Aura-1B/tokenizer.json"
-  tasks: ["asr"]
+# stage4_v1_step45000:
+#   model_type: "speech_aura_full"
+#   model_name: "stage4_v1_step45000"
+#   checkpoint_dir: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage4_v1_interactive/checkpoint_step45000"
+#   encoder_checkpoint: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage1_v3_fleurs/encoder_step100000.pt"
+#   aura_checkpoint: "/ocean/projects/cis250145p/shared/checkpoints/Aura-1B/model.pt"
+#   aura_tokenizer: "/ocean/projects/cis250145p/shared/checkpoints/Aura-1B/tokenizer.json"
+#   tasks: ["asr"]
 
 # Stage 5 v1 (full unfreeze: encoder + LLM both trainable). Best checkpoint by
 # internal val WER (0.2597 at step 40000). encoder_checkpoint is only the
 # architecture seed — the real fine-tuned encoder weights load from
 # checkpoint_dir/encoder.pt via SpeechAura.load_checkpoint().
-stage5_v1_step40000:
-  model_type: "speech_aura_full"
-  model_name: "stage5_v1_step40000"
-  checkpoint_dir: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage4_v1_batch/checkpoint_step40000"
-  encoder_checkpoint: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage1_v3_fleurs/encoder_step100000.pt"
-  aura_checkpoint: "/ocean/projects/cis250145p/shared/checkpoints/Aura-1B/model.pt"
-  aura_tokenizer: "/ocean/projects/cis250145p/shared/checkpoints/Aura-1B/tokenizer.json"
-  tasks: ["asr"]
+# stage5_v1_step40000:
+#   model_type: "speech_aura_full"
+#   model_name: "stage5_v1_step40000"
+#   checkpoint_dir: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage4_v1_batch/checkpoint_step40000"
+#   encoder_checkpoint: "/ocean/projects/cis250145p/tanghang/iwslt2026/runs/stage1_v3_fleurs/encoder_step100000.pt"
+#   aura_checkpoint: "/ocean/projects/cis250145p/shared/checkpoints/Aura-1B/model.pt"
+#   aura_tokenizer: "/ocean/projects/cis250145p/shared/checkpoints/Aura-1B/tokenizer.json"
+#   tasks: ["asr"]
 
 # Stage 6 (stage4_v2_batch): V6 index (NCHLT-augmented for zul/xho/sot/tsn) +
 # max_duration 20.0->30.0 (WAXAL fix) + extended LR schedule (150k steps).
@@ -381,3 +381,45 @@ simba_w:
   tasks: ["asr"]
   generation_config:
     max_new_tokens: 384
+
+# ---- Strict stock-model adapters for the leaderboard (see models/hf/strict_hf.py). Public, ungated; pinned. ----
+whisper_large_v3_strict:
+  model_name: "openai/whisper-large-v3"
+  model_type: "strict_whisper"
+  revision: "06f233fe06e710322aca913c1bc4249a0d71fce1"
+  cache_dir: "/work/nvme/bfbf/etanghang/stt_bench_data/hf_models"
+  torch_dtype: "float16"
+  batch_size: 1
+  tasks: ["asr"]
+  generation_config:
+    max_new_tokens: 384
+
+seamless_m4t_v2_strict:
+  model_name: "facebook/seamless-m4t-v2-large"
+  model_type: "strict_seamless"
+  revision: "5f8cc790b19fc3f67a61c105133b20b34e3dcb76"
+  cache_dir: "/work/nvme/bfbf/etanghang/stt_bench_data/hf_models"
+  torch_dtype: "float16"
+  batch_size: 1
+  tasks: ["asr"]
+  generation_config:
+    max_new_tokens: 256
+
+mms_1b_all_strict:
+  model_name: "facebook/mms-1b-all"
+  model_type: "strict_mms"
+  revision: "3d33597edbdaaba14a8e858e2c8caa76e3cec0cd"
+  cache_dir: "/work/nvme/bfbf/etanghang/stt_bench_data/hf_models"
+  torch_dtype: "float16"
+  tasks: ["asr"]
+
+# ---- Phase 1 Conformer CTC encoder (the "Conformer" column). Replicates phase1_asr eval_asr_decode.py --system ctc. ----
+conformer_ctc_phase1:
+  model_name: "conformer_ctc_phase1_step72000"
+  model_type: "conformer_ctc"
+  st_src: "/work/nvme/bfbf/etanghang/phase1/encoder_retrain/iwslt2026/src"
+  checkpoint: "/work/nvme/bfbf/shared/checkpoints/conformer_encoder/encoder_step72000.pt"
+  vocab_path: "/work/nvme/bfbf/shared/checkpoints/conformer_encoder/vocab.json"
+  encoder: {input_dim: 80, encoder_dim: 1024, num_heads: 16, ffn_dim: 4096, num_layers: 18, depthwise_conv_kernel_size: 31, dropout: 0.1}
+  languages: ['af_za', 'am_et', 'ar_eg', 'bem', 'en_us', 'fon_bj', 'fr_fr', 'ha_ng', 'ig_ng', 'rw_rw', 'ln_cd', 'lg_ug', 'mg_mg', 'ny_mw', 'pt_br', 'sn_zw', 'so_so', 'st_za', 'sw_ke', 'ti_et', 'tn_za', 'wo_sn', 'xh_za', 'yo_ng', 'zu_za']
+  tasks: ["asr"]
