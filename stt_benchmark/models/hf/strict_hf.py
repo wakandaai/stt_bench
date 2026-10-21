@@ -42,6 +42,9 @@ class StrictWhisperModel(SimbaWhisperModel):
         super().__init__(model_name, cfg)
 
 
+SEAMLESS_NO_TEXT_TARGET = {"hau", "lin"}
+
+
 class StrictSeamlessModel(SimbaSeamlessModel):
     """Stock SeamlessM4T-v2 speech-to-text with tgt_lang = the audio's language (ASR), where Seamless has it for both
     speech input and text output."""
@@ -49,7 +52,10 @@ class StrictSeamlessModel(SimbaSeamlessModel):
 
     def __init__(self, model_name: str, model_config: Dict[str, Any]):
         cfg = dict(model_config)
-        tgt = {c: fleurs_to_seamless(c) for c in LEADERBOARD_CODES if seamless_supports_asr(c)}
+        # the shared support table lists hau and lin as text targets, but the model's generation_config
+        # (text_decoder_lang_to_code_id) has no such codes and generate() raises; checked for every leaderboard language
+        tgt = {c: fleurs_to_seamless(c) for c in LEADERBOARD_CODES
+               if seamless_supports_asr(c) and fleurs_to_seamless(c) not in SEAMLESS_NO_TEXT_TARGET}
         cfg["languages"] = sorted(tgt)
         cfg["tgt_lang_map"] = tgt
         super().__init__(model_name, cfg)

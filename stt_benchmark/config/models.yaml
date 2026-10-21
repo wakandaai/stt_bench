@@ -423,3 +423,66 @@ conformer_ctc_phase1:
   encoder: {input_dim: 80, encoder_dim: 1024, num_heads: 16, ffn_dim: 4096, num_layers: 18, depthwise_conv_kernel_size: 31, dropout: 0.1}
   languages: ['af_za', 'am_et', 'ar_eg', 'bem', 'en_us', 'fon_bj', 'fr_fr', 'ha_ng', 'ig_ng', 'rw_rw', 'ln_cd', 'lg_ug', 'mg_mg', 'ny_mw', 'pt_br', 'sn_zw', 'so_so', 'st_za', 'sw_ke', 'ti_et', 'tn_za', 'wo_sn', 'xh_za', 'yo_ng', 'zu_za']
   tasks: ["asr"]
+
+# ---- Meta Omnilingual ASR through its own pipeline (see models/hf/strict_omni.py). Checkpoints are fetched by fairseq2
+# from dl.fbaipublicfiles.com (no revision pin exists; the file hash is recorded in run_info). ----
+omniasr_llm_1b_strict:
+  model_name: "omniASR_LLM_1B"
+  model_type: "strict_omni"
+  model_card: "omniASR_LLM_1B"
+  torch_dtype: "bfloat16"
+  batch_size: 1
+  tasks: ["asr"]
+
+omniasr_llm_3b_strict:
+  model_name: "omniASR_LLM_3B"
+  model_type: "strict_omni"
+  model_card: "omniASR_LLM_3B"
+  torch_dtype: "bfloat16"
+  batch_size: 1
+  tasks: ["asr"]
+
+# ---- Private WakandaAI checkpoints (models/hf/strict_aura.py). Read with the wakanda_download token profile; pinned. ----
+aura_v6_strict:        # Aura-ASR-v2 = stage6_v1_step95000, wrapper-default decoding (no_repeat_ngram_size=3, what the model card used)
+  model_name: "WakandaAI/Aura-ASR-v2"
+  model_type: "strict_aura_asr"
+  repo: "WakandaAI/Aura-ASR-v2"
+  revision: "fa1be60c68c0321d0c2a581316cbb02fead20beb"
+  cache_dir: "/work/nvme/bfbf/etanghang/stt_bench_data/hf_models"
+  no_repeat_ngram_size: 3
+  max_new_tokens: 256
+  tasks: ["asr"]
+
+aura_v6_plain_strict:  # same weights, plain greedy (no n-gram ban)
+  model_name: "WakandaAI/Aura-ASR-v2"
+  model_type: "strict_aura_asr"
+  repo: "WakandaAI/Aura-ASR-v2"
+  revision: "fa1be60c68c0321d0c2a581316cbb02fead20beb"
+  cache_dir: "/work/nvme/bfbf/etanghang/stt_bench_data/hf_models"
+  no_repeat_ngram_size: 0
+  max_new_tokens: 256
+  tasks: ["asr"]
+
+aura_wav2vec_encoder_strict:
+  model_name: "WakandaAI/Aura-Wav2Vec-Encoder"
+  model_type: "strict_aura_encoder"
+  repo: "WakandaAI/Aura-Wav2Vec-Encoder"
+  revision: "ae434e788e3f8e7b577a2de3bdaa6b13ea0476a5"
+  cache_dir: "/work/nvme/bfbf/etanghang/stt_bench_data/hf_models"
+  tasks: ["asr"]
+
+omniasr_ctc_300m_strict:
+  model_name: "omniASR_CTC_300M"
+  model_type: "strict_omni"
+  model_card: "omniASR_CTC_300M"
+  torch_dtype: "bfloat16"
+  batch_size: 1
+  tasks: ["asr"]
+
+omniasr_ctc_1b_strict:
+  model_name: "omniASR_CTC_1B"
+  model_type: "strict_omni"
+  model_card: "omniASR_CTC_1B"
+  torch_dtype: "bfloat16"
+  batch_size: 1
+  tasks: ["asr"]

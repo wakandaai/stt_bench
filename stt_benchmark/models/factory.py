@@ -19,6 +19,8 @@ from stt_benchmark.models.hf.sunflower_whisper import SunflowerWhisperModel
 from stt_benchmark.models.hf.simba import SimbaCtcModel, SimbaWhisperModel, SimbaSeamlessModel
 from stt_benchmark.models.hf.conformer_ctc import ConformerCtcModel
 from stt_benchmark.models.hf.strict_hf import StrictWhisperModel, StrictSeamlessModel, StrictMmsModel
+from stt_benchmark.models.hf.strict_omni import StrictOmniAsrModel
+from stt_benchmark.models.hf.strict_aura import StrictAuraAsrModel, StrictAuraEncoderModel
 
 
 
@@ -48,6 +50,9 @@ class ModelFactory:
         "strict_whisper": StrictWhisperModel,
         "strict_seamless": StrictSeamlessModel,
         "strict_mms": StrictMmsModel,
+        "strict_omni": StrictOmniAsrModel,
+        "strict_aura_asr": StrictAuraAsrModel,
+        "strict_aura_encoder": StrictAuraEncoderModel,
     }
 
     @classmethod
