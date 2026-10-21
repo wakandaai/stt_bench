@@ -46,6 +46,7 @@ class CleanedEvalDataset(BaseASRDataset):
         split: str = "test",
         languages: Optional[List[str]] = None,
         limit: int = 0,
+        shard: Optional[tuple] = None,
     ):
         if split != "test":
             raise ValueError(f"cleaned eval groups are test-only; got split='{split}'")
@@ -60,6 +61,13 @@ class CleanedEvalDataset(BaseASRDataset):
             raise ValueError(f"group {group} is language '{self.code}', config asked for {languages}")
         self.split = split
         self.limit = int(limit)              # DEBUG/calibration only: audio of the first N rows is verified/decoded
+        # (index, count): this process decodes rows[index::count] of the manifest (utterance-level sharding of one
+        # group over several processes); the manifest itself is always checked in full.
+        if shard is not None:
+            shard = (int(shard[0]), int(shard[1]))
+            if not (shard[1] >= 1 and 0 <= shard[0] < shard[1]):
+                raise ValueError(f"bad shard {shard}")
+        self.shard = shard
         self._cache: Optional[List[AudioSample]] = None
 
     # ------------------------------------------------------------------
@@ -79,6 +87,8 @@ class CleanedEvalDataset(BaseASRDataset):
         if len(kind) != 1:
             raise ValueError(f"{self.group}: mixed audio kinds {kind}")
         use = rows[: self.limit] if self.limit else rows          # the full manifest was already checked above
+        if self.shard is not None:
+            use = use[self.shard[0]::self.shard[1]]
         samples = self._load_parquet(use) if kind == {"parquet"} else self._load_wav(use)
         self._cache = samples
         return samples
@@ -131,6 +141,10 @@ class CleanedEvalDataset(BaseASRDataset):
         if language != self.code:
             raise ValueError(f"group {self.group} has only language '{self.code}', requested '{language}'")
         return self._load()
+
+    def manifest_ids(self) -> List[str]:
+        """sample ids of the full manifest in manifest order (no audio is read)."""
+        return [r["sample_id"] for r in _read_tsv(os.path.join(self.manifest_dir, self.info["manifest_file"]))]
 
     def list_languages(self) -> Set[str]:
         return {self.code}

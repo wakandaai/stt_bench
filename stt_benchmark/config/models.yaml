@@ -5,49 +5,50 @@
 # Supports: ASR (all languages), AST (X -> English only)
 # ============================================================================
 
-whisper_large_v3:
-  model_name: "openai/whisper-large-v3"
-  model_type: "whisper"
-  torch_dtype: "float16"
-  device_map: "auto"
-  tasks: ["asr", "ast"]
-  generation_config:
-    num_beams: 1          # greedy for speed; set to 5 for quality
-    max_new_tokens: 384
-    return_timestamps: false
+# Old (non-strict) Whisper entries retired: the leaderboard uses the strict entries below (large-v3 and medium).
+# whisper_large_v3:
+#   model_name: "openai/whisper-large-v3"
+#   model_type: "whisper"
+#   torch_dtype: "float16"
+#   device_map: "auto"
+#   tasks: ["asr", "ast"]
+#   generation_config:
+#     num_beams: 1          # greedy for speed; set to 5 for quality
+#     max_new_tokens: 384
+#     return_timestamps: false
 
-whisper_large_v3_turbo:
-  model_name: "openai/whisper-large-v3-turbo"
-  model_type: "whisper"
-  torch_dtype: "float16"
-  device_map: "auto"
-  tasks: ["asr", "ast"]
-  generation_config:
-    num_beams: 1
-    max_new_tokens: 384
-    return_timestamps: false
+# whisper_large_v3_turbo:
+#   model_name: "openai/whisper-large-v3-turbo"
+#   model_type: "whisper"
+#   torch_dtype: "float16"
+#   device_map: "auto"
+#   tasks: ["asr", "ast"]
+#   generation_config:
+#     num_beams: 1
+#     max_new_tokens: 384
+#     return_timestamps: false
 
-whisper_medium:
-  model_name: "openai/whisper-medium"
-  model_type: "whisper"
-  torch_dtype: "float16"
-  device_map: "auto"
-  tasks: ["asr", "ast"]
-  generation_config:
-    num_beams: 1
-    max_new_tokens: 384
-    return_timestamps: false
+# whisper_medium:
+#   model_name: "openai/whisper-medium"
+#   model_type: "whisper"
+#   torch_dtype: "float16"
+#   device_map: "auto"
+#   tasks: ["asr", "ast"]
+#   generation_config:
+#     num_beams: 1
+#     max_new_tokens: 384
+#     return_timestamps: false
 
-whisper_small:
-  model_name: "openai/whisper-small"
-  model_type: "whisper"
-  torch_dtype: "float32"
-  device_map: "auto"
-  tasks: ["asr", "ast"]
-  generation_config:
-    num_beams: 1
-    max_new_tokens: 384
-    return_timestamps: false
+# whisper_small:
+#   model_name: "openai/whisper-small"
+#   model_type: "whisper"
+#   torch_dtype: "float32"
+#   device_map: "auto"
+#   tasks: ["asr", "ast"]
+#   generation_config:
+#     num_beams: 1
+#     max_new_tokens: 384
+#     return_timestamps: false
 
 # ============================================================================
 # SeamlessM4T v2 (Meta)
@@ -387,6 +388,17 @@ whisper_large_v3_strict:
   model_name: "openai/whisper-large-v3"
   model_type: "strict_whisper"
   revision: "06f233fe06e710322aca913c1bc4249a0d71fce1"
+  cache_dir: "/work/nvme/bfbf/etanghang/stt_bench_data/hf_models"
+  torch_dtype: "float16"
+  batch_size: 1
+  tasks: ["asr"]
+  generation_config:
+    max_new_tokens: 384
+
+whisper_medium_strict:
+  model_name: "openai/whisper-medium"
+  model_type: "strict_whisper"
+  revision: "abdf7c39ab9d0397620ccaea8974cc764cd0953e"
   cache_dir: "/work/nvme/bfbf/etanghang/stt_bench_data/hf_models"
   torch_dtype: "float16"
   batch_size: 1
