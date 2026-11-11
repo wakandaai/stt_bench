@@ -19,6 +19,8 @@ from stt_benchmark.models.hf.sunflower_whisper import SunflowerWhisperModel
 from stt_benchmark.models.hf.simba import SimbaCtcModel, SimbaWhisperModel, SimbaSeamlessModel
 from stt_benchmark.models.hf.conformer_ctc import ConformerCtcModel
 from stt_benchmark.models.hf.strict_hf import StrictWhisperModel, StrictSeamlessModel, StrictMmsModel
+from stt_benchmark.models.hf.strict_omni import StrictOmniAsrModel
+from stt_benchmark.models.hf.strict_aura import StrictAuraAsrModel, StrictAuraEncoderModel
 
 
 
@@ -32,9 +34,12 @@ class ModelFactory:
         "cascaded": CascadedMmsNllbModel,
         "speech_aura": SpeechAuraModel,
         # Same adapter: st.training.train_st.build_model dispatches on whether the
-        # export's config.yaml carries an `aura:` or an `nllb:` block, and both
-        # models honour the same generate() contract.
+        # export's config.yaml carries an `aura:`, `nllb:`, or `causal_lm:` block, and
+        # all three models honour the same generate() contract.
         "speech_nllb": SpeechAuraModel,
+        # causal_lm: any HF decoder-only backbone (Qwen/Llama/Gemma/...) — see
+        # st.models.speech_causal_lm.SpeechCausalLM. ST-only, like speech_nllb.
+        "causal_lm": SpeechAuraModel,
         "ctc_encoder": CTCEncoderModel,
         "omni_asr": OmniAsrModel,
         "omniasr_ctc": OmniAsrCtcModel,
@@ -48,6 +53,9 @@ class ModelFactory:
         "strict_whisper": StrictWhisperModel,
         "strict_seamless": StrictSeamlessModel,
         "strict_mms": StrictMmsModel,
+        "strict_omni": StrictOmniAsrModel,
+        "strict_aura_asr": StrictAuraAsrModel,
+        "strict_aura_encoder": StrictAuraEncoderModel,
     }
 
     @classmethod

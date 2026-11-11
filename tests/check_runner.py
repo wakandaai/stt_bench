@@ -107,6 +107,51 @@ with contextlib.redirect_stdout(buf):
 check("plan totals match approved 89,662 utterances", "89662 utterances" in buf.getvalue(), buf.getvalue().strip().split("\n")[-1])
 
 shutil.rmtree(out)
+
+# 6 sharded decode + merge == unsharded run (same hypotheses -> same score), failures isolated inside a batch
+import glob
+class Corrupt(Stub):                     # deterministic, text-dependent hypotheses so a mix-up would change the score
+    def transcribe(self, samples, language):
+        return [s.transcription[:-1] if len(s.transcription) > 3 else s.transcription for s in samples]
+ref = R.run_model(Corrupt(), "uns", specs, out, batch_size=4, n_boot=50)
+N = 3
+for i in range(N):
+    R.run_model(Corrupt(), "shd", specs, out, batch_size=4, n_boot=50, shard=(i, N))
+check("shard files written", len(glob.glob(f"{out}/shd/{specs[0].dataset_name}/decode.shard*of3.json")) == 3)
+check("no result.json before merge", not os.path.exists(f"{out}/shd/{specs[0].dataset_name}/result.json"))
+mg = R.merge_model("shd", specs, out, N, n_boot=50)
+for a, b in zip(ref, mg):
+    check(f"sharded == unsharded {a['group']}", a["status"] == b["status"] == "ok" and all(a[k] == b[k] for k in ("wer", "cer", "n", "n_failed", "wer_ci_low", "wer_ci_high")), (a.get("wer"), b.get("wer")))
+    pa = open(f"{out}/uns/{a['group']}/predictions.csv", encoding="utf-8").read()
+    pb = open(f"{out}/shd/{a['group']}/predictions.csv", encoding="utf-8").read()
+    check(f"merged predictions identical and in manifest order {a['group']}", pa == pb)
+check("run_info merged records shards", json.load(open(f"{out}/shd/run_info.json"))["n_shards"] == N)
+os.remove(f"{out}/shd/{specs[1].dataset_name}/decode.shard1of3.json"); os.remove(f"{out}/shd/{specs[1].dataset_name}/result.json")
+try:
+    R.merge_model("shd", specs, out, N, n_boot=50, groups=[specs[1].dataset_name])
+    check("merge with a missing shard raises", False, "did not raise")
+except RuntimeError:
+    check("merge with a missing shard raises", True)
+
+class FailOne(Stub):                     # the first multi-utterance batch fails as a whole; one utterance is truly bad
+    def __init__(self, bad=None):
+        super().__init__(); self.bad, self.tripped = bad, False
+    def transcribe(self, samples, language):
+        if len(samples) > 1 and not self.tripped:
+            self.tripped = True
+            raise RuntimeError("CUDA out of memory (stub)")
+        if self.bad and any(s.sample_id == self.bad for s in samples):
+            raise ValueError("bad audio (stub)")
+        return [s.transcription for s in samples]
+from stt_benchmark.datasets.registry import create_dataset as _cd
+bad_id = _cd(specs[0].dataset_name, **dict(specs[0].dataset_kwargs)).manifest_ids()[1]
+r = R.run_model(FailOne(), "iso1", specs[:1], out, batch_size=4, n_boot=50)
+check("failed batch is re-run one by one: all utterances recovered", r[0]["status"] == "ok" and r[0]["n_failed"] == 0, r[0].get("n_failed"))
+r = R.run_model(FailOne(bad=bad_id), "iso2", specs[:1], out, batch_size=4, n_boot=50)
+check("one truly bad utterance costs exactly one failure", r[0]["status"] == "ok" and r[0]["n_failed"] == 1, r[0].get("n_failed"))
+rows = list(csv.DictReader(open(f"{out}/iso2/{specs[0].dataset_name}/predictions.csv", encoding="utf-8")))
+check("only the bad utterance is marked failed", [x["sample_id"] for x in rows if x["failed"] == "1"] == [bad_id])
+
 print(f"\n{passes} PASS, {len(fails)} FAIL")
 for f in fails:
     print("  FAIL", f)

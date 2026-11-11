@@ -13,7 +13,15 @@ Two modes (set via `mode` in the YAML config, default 'transcribe'):
   - 'translate':  AST-only model. translate() uses task='st' (direct
                   speech translation), transcribe() is unsupported.
 
-Requires `pip install -e .` of the iwslt2026 repo so `import st` works.
+This class also backs speech_nllb and causal_lm (see get_model_info) —
+st.training.train_st.build_model dispatches on which backbone block the exported
+config.yaml carries (aura: / nllb: / causal_lm:), and all three honour the same
+generate()/transcribe()/translate() contract. The one thing that does NOT
+generalize automatically is which language-support module to consult (FLEURS code
+-> dataset language name differs across language sets) — that is selected below
+via model_config["model_type"].
+
+Requires `pip install -e .` of the speechaura repo so `import st` works.
 """
 
 import os
@@ -31,7 +39,27 @@ from stt_benchmark.config.language_support.speech_aura import (
     get_speech_aura_asr_languages,
     get_speech_aura_ast_pairs,
 )
+from stt_benchmark.config.language_support.causal_lm import (
+    fleurs_to_causal_lm,
+    causal_lm_supports_asr,
+    causal_lm_supports_ast,
+    get_causal_lm_asr_languages,
+    get_causal_lm_ast_pairs,
+)
 from stt_benchmark.utils.audio import resolve_audio
+
+# model_type -> (fleurs_to_<backbone>, <backbone>_supports_asr, <backbone>_supports_ast,
+#                get_<backbone>_asr_languages, get_<backbone>_ast_pairs)
+# "speech_nllb" reuses speech_aura's module: both trained on the same 20-language AST_INDEX
+# set with the same dataset-name convention, so there is nothing backbone-specific to swap.
+_LANGUAGE_SUPPORT = {
+    "speech_aura": (fleurs_to_aura, speech_aura_supports_asr, speech_aura_supports_ast,
+                     get_speech_aura_asr_languages, get_speech_aura_ast_pairs),
+    "speech_nllb": (fleurs_to_aura, speech_aura_supports_asr, speech_aura_supports_ast,
+                     get_speech_aura_asr_languages, get_speech_aura_ast_pairs),
+    "causal_lm":   (fleurs_to_causal_lm, causal_lm_supports_asr, causal_lm_supports_ast,
+                     get_causal_lm_asr_languages, get_causal_lm_ast_pairs),
+}
 
 
 class SpeechAuraModel(BaseSTTModel):
@@ -51,6 +79,20 @@ class SpeechAuraModel(BaseSTTModel):
             raise ValueError(
                 f"speech_aura mode must be 'transcribe' or 'translate', got '{self.mode}'"
             )
+
+        backbone_type = model_config.get("model_type", "speech_aura")
+        if backbone_type not in _LANGUAGE_SUPPORT:
+            raise ValueError(
+                f"Unknown model_type {backbone_type!r} for language support — "
+                f"expected one of {list(_LANGUAGE_SUPPORT)}"
+            )
+        (
+            self._fleurs_to_backbone,
+            self._backbone_supports_asr,
+            self._backbone_supports_ast,
+            self._get_backbone_asr_languages,
+            self._get_backbone_ast_pairs,
+        ) = _LANGUAGE_SUPPORT[backbone_type]
 
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -102,11 +144,11 @@ class SpeechAuraModel(BaseSTTModel):
         # benchmark's pre-flight validation will then skip the irrelevant
         # half of any eval config gracefully.
         if self.mode == "transcribe":
-            self._asr_languages = get_speech_aura_asr_languages()
+            self._asr_languages = self._get_backbone_asr_languages()
             self._ast_pairs: Set[Tuple[str, str]] = set()
         else:  # translate
             self._asr_languages: Set[str] = set()
-            self._ast_pairs = get_speech_aura_ast_pairs()
+            self._ast_pairs = self._get_backbone_ast_pairs()
 
     # ------------------------------------------------------------------
     # Audio → mel (matches st/inference/generate.py exactly)
@@ -137,8 +179,8 @@ class SpeechAuraModel(BaseSTTModel):
             tgt_fleurs: FLEURS code of the target language (only used for 'st')
         """
         mel, mel_len = self._sample_to_mel(sample)
-        src_aura = fleurs_to_aura(src_fleurs)
-        tgt_aura = fleurs_to_aura(tgt_fleurs) or "english"
+        src_aura = self._fleurs_to_backbone(src_fleurs)
+        tgt_aura = self._fleurs_to_backbone(tgt_fleurs) or "english"
 
         if task == "asr":
             max_new = self.max_new_tokens_asr
@@ -174,7 +216,7 @@ class SpeechAuraModel(BaseSTTModel):
             )
             return [""] * len(samples)
 
-        if not speech_aura_supports_asr(language):
+        if not self._backbone_supports_asr(language):
             print(f"SpeechAura does not support ASR for {language}")
             return [""] * len(samples)
 
@@ -201,7 +243,7 @@ class SpeechAuraModel(BaseSTTModel):
             )
             return [""] * len(samples)
 
-        if not speech_aura_supports_ast(source_lang, target_lang):
+        if not self._backbone_supports_ast(source_lang, target_lang):
             print(f"SpeechAura does not support AST {source_lang}→{target_lang}")
             return [""] * len(samples)
 
@@ -224,7 +266,7 @@ class SpeechAuraModel(BaseSTTModel):
         return {
             "model_name": self.model_name,
             # Report what was configured rather than a hardcoded name — this
-            # class also backs the speech_nllb models (see the module docstring).
+            # class also backs speech_nllb and causal_lm (see the module docstring).
             "model_type": self.config.get("model_type", "speech_aura"),
             "mode": self.mode,
             "device": self.device,

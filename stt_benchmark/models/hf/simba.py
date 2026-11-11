@@ -20,6 +20,7 @@ in-domain for them.
 """
 
 import re
+import zlib
 from typing import Any, Dict, List, Optional, Set
 
 import torch
@@ -102,6 +103,9 @@ class SimbaWhisperModel(_SimbaBase):
         from transformers import WhisperForConditionalGeneration, WhisperProcessor
         self.max_new_tokens = int(model_config.get("generation_config", {}).get("max_new_tokens", 384))
         self.force_language = model_config.get("force_language", {})   # repo code -> whisper language code, optional
+        self.detect_fraction = float(model_config.get("detect_language_fraction", 1.0))   # share of clips whose language is also detected (diagnostic only)
+        if not 0.0 <= self.detect_fraction <= 1.0:
+            raise ValueError("detect_language_fraction must be in [0, 1]")
         self.processor = WhisperProcessor.from_pretrained(model_name, revision=self.revision, cache_dir=self.cache_dir)
         self.model = WhisperForConditionalGeneration.from_pretrained(
             model_name, revision=self.revision, cache_dir=self.cache_dir, torch_dtype=self.torch_dtype)
@@ -126,14 +130,22 @@ class SimbaWhisperModel(_SimbaBase):
                 ids = self.model.generate(feats, num_beams=1, do_sample=False, max_new_tokens=self.max_new_tokens, **kw)
             # Language Whisper's own detector picks for each clip (what the free-running decode conditions on when
             # nothing is forced). Recorded, never used to override anything.
-            with torch.inference_mode():
-                det = torch.as_tensor(self.model.detect_language(input_features=feats)).flatten().tolist()
-            det_tokens = self.processor.tokenizer.convert_ids_to_tokens(det)
+            # detect_language re-runs the whole encoder, so it can be limited to a deterministic subset of the
+            # utterances (crc32 of the sample id); it only records, it never changes a transcript.
+            pick = [j for j in range(feats.shape[0])
+                    if zlib.crc32(samples[i + j].sample_id.encode()) % 1000 < int(self.detect_fraction * 1000)]
+            det_by_j = {}
+            if pick:
+                with torch.inference_mode():
+                    det = torch.as_tensor(self.model.detect_language(input_features=feats[pick])).flatten().tolist()
+                det_by_j = dict(zip(pick, self.processor.tokenizer.convert_ids_to_tokens(det)))
             txt = self.processor.batch_decode(ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)
             for j, t in enumerate(txt):
-                m = _LANG_TOKEN.fullmatch(det_tokens[j] or "")
+                tok = det_by_j.get(j)
+                m = _LANG_TOKEN.fullmatch(tok or "")
                 self.lang_log.append({"sample_id": samples[i + j].sample_id, "language": language,
-                                      "forced": kw.get("language"), "detected": m.group(1) if m else det_tokens[j]})
+                                      "forced": kw.get("language"),
+                                      "detected": (m.group(1) if m else tok) if j in det_by_j else None})
                 out.append(t.strip())
         if len(out) != len(samples):
             raise RuntimeError(f"{len(out)} hypotheses for {len(samples)} samples")

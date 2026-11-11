@@ -5,49 +5,50 @@
 # Supports: ASR (all languages), AST (X -> English only)
 # ============================================================================
 
-whisper_large_v3:
-  model_name: "openai/whisper-large-v3"
-  model_type: "whisper"
-  torch_dtype: "float16"
-  device_map: "auto"
-  tasks: ["asr", "ast"]
-  generation_config:
-    num_beams: 1          # greedy for speed; set to 5 for quality
-    max_new_tokens: 384
-    return_timestamps: false
+# Old (non-strict) Whisper entries retired: the leaderboard uses the strict entries below (large-v3 and medium).
+# whisper_large_v3:
+#   model_name: "openai/whisper-large-v3"
+#   model_type: "whisper"
+#   torch_dtype: "float16"
+#   device_map: "auto"
+#   tasks: ["asr", "ast"]
+#   generation_config:
+#     num_beams: 1          # greedy for speed; set to 5 for quality
+#     max_new_tokens: 384
+#     return_timestamps: false
 
-whisper_large_v3_turbo:
-  model_name: "openai/whisper-large-v3-turbo"
-  model_type: "whisper"
-  torch_dtype: "float16"
-  device_map: "auto"
-  tasks: ["asr", "ast"]
-  generation_config:
-    num_beams: 1
-    max_new_tokens: 384
-    return_timestamps: false
+# whisper_large_v3_turbo:
+#   model_name: "openai/whisper-large-v3-turbo"
+#   model_type: "whisper"
+#   torch_dtype: "float16"
+#   device_map: "auto"
+#   tasks: ["asr", "ast"]
+#   generation_config:
+#     num_beams: 1
+#     max_new_tokens: 384
+#     return_timestamps: false
 
-whisper_medium:
-  model_name: "openai/whisper-medium"
-  model_type: "whisper"
-  torch_dtype: "float16"
-  device_map: "auto"
-  tasks: ["asr", "ast"]
-  generation_config:
-    num_beams: 1
-    max_new_tokens: 384
-    return_timestamps: false
+# whisper_medium:
+#   model_name: "openai/whisper-medium"
+#   model_type: "whisper"
+#   torch_dtype: "float16"
+#   device_map: "auto"
+#   tasks: ["asr", "ast"]
+#   generation_config:
+#     num_beams: 1
+#     max_new_tokens: 384
+#     return_timestamps: false
 
-whisper_small:
-  model_name: "openai/whisper-small"
-  model_type: "whisper"
-  torch_dtype: "float32"
-  device_map: "auto"
-  tasks: ["asr", "ast"]
-  generation_config:
-    num_beams: 1
-    max_new_tokens: 384
-    return_timestamps: false
+# whisper_small:
+#   model_name: "openai/whisper-small"
+#   model_type: "whisper"
+#   torch_dtype: "float32"
+#   device_map: "auto"
+#   tasks: ["asr", "ast"]
+#   generation_config:
+#     num_beams: 1
+#     max_new_tokens: 384
+#     return_timestamps: false
 
 # ============================================================================
 # SeamlessM4T v2 (Meta)
@@ -164,14 +165,16 @@ mms_1b_fl102_nllb_3b_cascaded:
 # Same stage4_nllb_st_v2 run, checkpoint_step27500 — distilled-1.3B base,
 # nllb_trainable: all. Distinct model_name so results don't collide with the
 # v2 (step30000) entry above.
-# speech_nllb:
-#   model_type: "speech_nllb"
-#   model_name: "speech_nllb"
-#   mode: "translate"
-#   export_dir: "/ocean/projects/cis250145p/gichamba/stt/speechaura/exports/speech_nllb"
-#   tasks: ["ast"]
-#   generation_config:
-#     max_new_tokens_st: 256
+# export_dir points at Alex's own NCSA copy of the export (group-readable,
+# delta_bfbf) since the Ocean path above is unreachable from this cluster.
+speech_nllb:
+  model_type: "speech_nllb"
+  model_name: "speech_nllb"
+  mode: "translate"
+  export_dir: "/projects/bfbf/agichamba/speechaura/exports/speech_nllb"
+  tasks: ["ast"]
+  generation_config:
+    max_new_tokens_st: 256
 
 # ============================================================================
 # CTC encoder (pretrained Conformer + CTC, no LLM). ASR-only, greedy decoding.
@@ -394,6 +397,17 @@ whisper_large_v3_strict:
   generation_config:
     max_new_tokens: 384
 
+whisper_medium_strict:
+  model_name: "openai/whisper-medium"
+  model_type: "strict_whisper"
+  revision: "abdf7c39ab9d0397620ccaea8974cc764cd0953e"
+  cache_dir: "/work/nvme/bfbf/etanghang/stt_bench_data/hf_models"
+  torch_dtype: "float16"
+  batch_size: 1
+  tasks: ["asr"]
+  generation_config:
+    max_new_tokens: 384
+
 seamless_m4t_v2_strict:
   model_name: "facebook/seamless-m4t-v2-large"
   model_type: "strict_seamless"
@@ -415,11 +429,66 @@ mms_1b_all_strict:
 
 # ---- Phase 1 Conformer CTC encoder (the "Conformer" column). Replicates phase1_asr eval_asr_decode.py --system ctc. ----
 conformer_ctc_phase1:
-  model_name: "conformer_ctc_phase1_step72000"
+  model_name: "conformer_ctc_phase1_step103919"
   model_type: "conformer_ctc"
   st_src: "/work/nvme/bfbf/etanghang/phase1/encoder_retrain/iwslt2026/src"
-  checkpoint: "/work/nvme/bfbf/shared/checkpoints/conformer_encoder/encoder_step72000.pt"
-  vocab_path: "/work/nvme/bfbf/shared/checkpoints/conformer_encoder/vocab.json"
+  checkpoint: "/work/nvme/bfbf/etanghang/phase1/checkpoints/conformer_encoder_kin_eng/encoder_final.pt"
+  vocab_path: "/work/nvme/bfbf/etanghang/phase1/checkpoints/conformer_encoder_kin_eng/vocab.json"
   encoder: {input_dim: 80, encoder_dim: 1024, num_heads: 16, ffn_dim: 4096, num_layers: 18, depthwise_conv_kernel_size: 31, dropout: 0.1}
   languages: ['af_za', 'am_et', 'ar_eg', 'bem', 'en_us', 'fon_bj', 'fr_fr', 'ha_ng', 'ig_ng', 'rw_rw', 'ln_cd', 'lg_ug', 'mg_mg', 'ny_mw', 'pt_br', 'sn_zw', 'so_so', 'st_za', 'sw_ke', 'ti_et', 'tn_za', 'wo_sn', 'xh_za', 'yo_ng', 'zu_za']
+  tasks: ["asr"]
+
+# ---- Meta Omnilingual ASR through its own pipeline (see models/hf/strict_omni.py). Checkpoints are fetched by fairseq2
+# from dl.fbaipublicfiles.com (no revision pin exists; the file hash is recorded in run_info). ----
+omniasr_llm_1b_strict:
+  model_name: "omniASR_LLM_1B"
+  model_type: "strict_omni"
+  model_card: "omniASR_LLM_1B"
+  torch_dtype: "bfloat16"
+  batch_size: 1
+  tasks: ["asr"]
+
+omniasr_llm_3b_strict:
+  model_name: "omniASR_LLM_3B"
+  model_type: "strict_omni"
+  model_card: "omniASR_LLM_3B"
+  torch_dtype: "bfloat16"
+  batch_size: 1
+  tasks: ["asr"]
+
+# ---- Private WakandaAI checkpoints (models/hf/strict_aura.py). Read with the wakanda_download token profile; pinned. ----
+aura_v6_strict:        # Aura-ASR-v2 = stage6_v1_step95000, wrapper-default decoding (no_repeat_ngram_size=3, what the model card used)
+  model_name: "WakandaAI/Aura-ASR-v2"
+  model_type: "strict_aura_asr"
+  repo: "WakandaAI/Aura-ASR-v2"
+  revision: "fa1be60c68c0321d0c2a581316cbb02fead20beb"
+  cache_dir: "/work/nvme/bfbf/etanghang/stt_bench_data/hf_models"
+  no_repeat_ngram_size: 3
+  max_new_tokens: 256
+  tasks: ["asr"]
+
+# aura_v6_plain_strict: removed — same weights as aura_v6_strict, greedy only; dropped to reduce compute cost
+
+aura_wav2vec_encoder_strict:
+  model_name: "WakandaAI/Aura-Wav2Vec-Encoder"
+  model_type: "strict_aura_encoder"
+  repo: "WakandaAI/Aura-Wav2Vec-Encoder"
+  revision: "ae434e788e3f8e7b577a2de3bdaa6b13ea0476a5"
+  cache_dir: "/work/nvme/bfbf/etanghang/stt_bench_data/hf_models"
+  tasks: ["asr"]
+
+omniasr_ctc_300m_strict:
+  model_name: "omniASR_CTC_300M"
+  model_type: "strict_omni"
+  model_card: "omniASR_CTC_300M"
+  torch_dtype: "bfloat16"
+  batch_size: 1
+  tasks: ["asr"]
+
+omniasr_ctc_1b_strict:
+  model_name: "omniASR_CTC_1B"
+  model_type: "strict_omni"
+  model_card: "omniASR_CTC_1B"
+  torch_dtype: "bfloat16"
+  batch_size: 1
   tasks: ["asr"]
