@@ -44,16 +44,12 @@ datasets:
       anchors: [en_us]
       direction: both
 
-  mbaza_fleurs_rw:
-    local_path: /ocean/projects/cis250145p/shared/datasets/mbazaNLP_fleurs-kinyarwanda
-    split: test
-    ast:
-      sources: [rw_rw]   # Kinyarwanda
-      anchors: [en_us]
-      direction: both
+  # mbaza_fleurs_rw (Kinyarwanda) omitted for this pass: scripts/fetch_mbaza_fleurs_rw.py,
+  # which this loader depends on, does not exist in this repo — needs to be written before
+  # Kinyarwanda can be added. See docs/causal_lm_notes.md-adjacent discussion, 2026-11-09.
 
   bigc:
-    local_path: /ocean/projects/cis250145p/shared/datasets/bigc/data/bem
+    local_path: /work/nvme/bfbf/shared/datasets_16k/bigc/data/bem
     split: test
     ast:
       pairs:
